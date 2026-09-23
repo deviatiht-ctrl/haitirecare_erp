@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historique Clients - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Historique Clients</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <button class="btn btn-secondary" onclick="window.location.href='/modules/clients/liste.html'">
+            <i data-lucide="arrow-left"></i>
+            Retour
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Toutes les interactions</h3>
+          </div>
+          <div id="all-interactions" class="loading">
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function loadAllInteractions() {
+      try {
+        const { data: interactions } = await db
+          .from('erp_client_suivi')
+          .select('*, erp_clients(nom, prenom)')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        const container = document.getElementById('all-interactions');
+        
+        if (!interactions?.length) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucune interaction</p></div>';
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th>Notes</th>
+                  <th>Prochaine action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${interactions.map(i => `
+                  <tr>
+                    <td>${formatDate(i.created_at)}</td>
+                    <td>${i.erp_clients?.nom} ${i.erp_clients?.prenom || ''}</td>
+                    <td><span class="badge badge-secondary">${i.type}</span></td>
+                    <td>${i.notes}</td>
+                    <td>${i.next_action || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (error) {
+        console.error('Load interactions error:', error);
+      }
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadAllInteractions();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dépenses - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+  <script src="../../../../assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Dépenses</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportDepenses()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+            <button class="btn btn-primary" onclick="openAddExpenseModal()">
+              <i data-lucide="plus"></i>
+              Ajouter une dépense
+            </button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <input type="date" id="filter-date-start" class="form-input">
+          <input type="date" id="filter-date-end" class="form-input">
+          <input type="text" id="filter-category" class="form-input" placeholder="Catégorie">
+          <button class="btn btn-secondary" onclick="applyFilters()">Filtrer</button>
+          <button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser</button>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="expenses-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Catégorie</th>
+                  <th>Montant</th>
+                  <th>Devise</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="expenses-table-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding: var(--space-4); border-top: 1px solid var(--clr-border); display: flex; justify-content: space-between; align-items: center;">
+            <span class="font-semibold">Total:</span>
+            <span class="font-bold text-lg text-danger" id="total-expenses">0 HTG</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Expense Modal -->
+  <div id="add-expense-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter une dépense</h3>
+        <button class="modal-close" onclick="closeAddExpenseModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="add-expense-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" name="date_transaction" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" name="description" class="form-input" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Catégorie</label>
+            <select name="categorie" class="form-select form-input">
+              <option value="">Sélectionner</option>
+              <option value="Fournitures">Fournitures</option>
+              <option value="Loyer">Loyer</option>
+              <option value="Personnel">Personnel</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Transport">Transport</option>
+              <option value="Autre">Autre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Montant</label>
+            <input type="number" name="montant" class="form-input" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Devise</label>
+          <select name="devise" class="form-select form-input">
+            <option value="HTG">HTG</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-input form-textarea"></textarea>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddExpenseModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="submitAddExpense()">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allExpenses = [];
+
+    async function loadExpenses() {
+      try {
+        const { data: expenses } = await db
+          .from('erp_depenses')
+          .select('*')
+          .order('date_transaction', { ascending: false });
+        
+        allExpenses = expenses || [];
+        renderExpensesTable(allExpenses);
+        updateTotal(allExpenses);
+      } catch (error) {
+        console.error('Load expenses error:', error);
+      }
+    }
+
+    function renderExpensesTable(expenses) {
+      const tbody = document.getElementById('expenses-table-body');
+      
+      if (!expenses.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucune dépense</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = expenses.map(expense => `
+        <tr>
+          <td>${formatDate(expense.date_transaction)}</td>
+          <td>${expense.description}</td>
+          <td>${expense.categorie || '-'}</td>
+          <td class="text-danger font-semibold">${formatCurrency(expense.montant, expense.devise)}</td>
+          <td>${expense.devise}</td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-btn danger" onclick="deleteExpense('${expense.id}')">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    function updateTotal(expenses) {
+      const total = expenses.reduce((sum, e) => sum + parseFloat(e.montant), 0);
+      document.getElementById('total-expenses').textContent = formatCurrency(total, 'HTG');
+    }
+
+    function openAddExpenseModal() {
+      document.getElementById('add-expense-modal').classList.remove('hidden');
+      document.querySelector('#add-expense-form input[name="date_transaction"]').valueAsDate = new Date();
+    }
+
+    function closeAddExpenseModal() {
+      document.getElementById('add-expense-modal').classList.add('hidden');
+      document.getElementById('add-expense-form').reset();
+    }
+
+    async function submitAddExpense() {
+      const form = document.getElementById('add-expense-form');
+      const formData = new FormData(form);
+      
+      const expenseData = {
+        date_transaction: formData.get('date_transaction'),
+        description: formData.get('description'),
+        categorie: formData.get('categorie'),
+        montant: parseFloat(formData.get('montant')),
+        devise: formData.get('devise'),
+        notes: formData.get('notes'),
+        created_by: window.currentUser?.id
+      };
+
+      try {
+        await db.from('erp_depenses').insert(expenseData);
+        closeAddExpenseModal();
+        await loadExpenses();
+        logActivity('Ajout dépense', 'Finances', `Dépense de ${expenseData.montant} ${expenseData.devise}`);
+      } catch (error) {
+        console.error('Add expense error:', error);
+        alert('Erreur lors de l\'ajout');
+      }
+    }
+
+    async function deleteExpense(expenseId) {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) return;
+      
+      try {
+        await db.from('erp_depenses').delete().eq('id', expenseId);
+        await loadExpenses();
+        logActivity('Suppression dépense', 'Finances', `Dépense ${expenseId} supprimée`);
+      } catch (error) {
+        console.error('Delete expense error:', error);
+        alert('Erreur lors de la suppression');
+      }
+    }
+
+    function applyFilters() {
+      const dateStart = document.getElementById('filter-date-start').value;
+      const dateEnd = document.getElementById('filter-date-end').value;
+      const category = document.getElementById('filter-category').value.toLowerCase();
+
+      let filtered = allExpenses;
+
+      if (dateStart) {
+        filtered = filtered.filter(e => e.date_transaction >= dateStart);
+      }
+
+      if (dateEnd) {
+        filtered = filtered.filter(e => e.date_transaction <= dateEnd);
+      }
+
+      if (category) {
+        filtered = filtered.filter(e => e.categorie?.toLowerCase().includes(category));
+      }
+
+      renderExpensesTable(filtered);
+      updateTotal(filtered);
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-date-start').value = '';
+      document.getElementById('filter-date-end').value = '';
+      document.getElementById('filter-category').value = '';
+      renderExpensesTable(allExpenses);
+      updateTotal(allExpenses);
+    }
+
+    function exportDepenses() {
+      const data = allExpenses.map(e => ({
+        Date: formatDate(e.date_transaction),
+        Description: e.description,
+        Catégorie: e.categorie || '',
+        Montant: e.montant,
+        Devise: e.devise,
+        Notes: e.notes || ''
+      }));
+      
+      exportWithConfig(data, 'expenses');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    function formatCurrency(amount, devise = 'HTG') {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: devise }).format(amount);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadExpenses();
+      });
+    });
+  </script>
+</body>
+</html>

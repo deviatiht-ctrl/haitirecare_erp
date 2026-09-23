@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rapports Financiers - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/print.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+  <script src="../../../../assets/js/charts.js?v=7"></script>
+  <script src="../../../../assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Rapports Financiers</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="window.print()">
+              <i data-lucide="printer"></i>
+              Imprimer
+            </button>
+            <button class="btn btn-primary" onclick="exportReport()">
+              <i data-lucide="download"></i>
+              Exporter Excel
+            </button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <input type="date" id="date-start" class="form-input">
+          <input type="date" id="date-end" class="form-input">
+          <button class="btn btn-secondary" onclick="generateReport()">Générer</button>
+          <button class="btn btn-ghost" onclick="setThisMonth()">Ce mois</button>
+          <button class="btn btn-ghost" onclick="setThisQuarter()">Ce trimestre</button>
+          <button class="btn btn-ghost" onclick="setThisYear()">Cette année</button>
+        </div>
+
+        <div class="print-header hidden" id="print-header">
+          <h1>Rapport Financier</h1>
+          <p id="print-period"></p>
+        </div>
+
+        <div class="kpi-grid" style="margin-bottom: var(--space-6);">
+          <div class="kpi-card">
+            <div class="kpi-icon success">
+              <i data-lucide="trending-up"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Total Revenus</div>
+              <div class="kpi-value" id="total-revenues">0 HTG</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon danger">
+              <i data-lucide="trending-down"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Total Dépenses</div>
+              <div class="kpi-value" id="total-expenses">0 HTG</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon primary">
+              <i data-lucide="dollar-sign"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Bénéfice Net</div>
+              <div class="kpi-value" id="net-profit">0 HTG</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon warning">
+              <i data-lucide="percent"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Marge</div>
+              <div class="kpi-value" id="margin">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-container" style="margin-bottom: var(--space-6);">
+          <div class="chart-header">
+            <h3 class="chart-title">Évolution Revenus vs Dépenses</h3>
+          </div>
+          <div class="chart-canvas">
+            <canvas id="finance-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="dashboard-grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Revenus par catégorie</h3>
+            </div>
+            <div class="table-container">
+              <table class="table" id="revenues-by-category">
+                <thead>
+                  <tr>
+                    <th>Catégorie</th>
+                    <th>Montant</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody id="revenues-category-body">
+                  <tr><td colspan="3" style="text-align: center;">-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Dépenses par catégorie</h3>
+            </div>
+            <div class="table-container">
+              <table class="table" id="expenses-by-category">
+                <thead>
+                  <tr>
+                    <th>Catégorie</th>
+                    <th>Montant</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody id="expenses-category-body">
+                  <tr><td colspan="3" style="text-align: center;">-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let reportData = { revenues: [], expenses: [] };
+
+    function setThisMonth() {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      document.getElementById('date-start').valueAsDate = firstDay;
+      document.getElementById('date-end').valueAsDate = lastDay;
+      generateReport();
+    }
+
+    function setThisQuarter() {
+      const now = new Date();
+      const quarter = Math.floor(now.getMonth() / 3);
+      const firstDay = new Date(now.getFullYear(), quarter * 3, 1);
+      const lastDay = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+      
+      document.getElementById('date-start').valueAsDate = firstDay;
+      document.getElementById('date-end').valueAsDate = lastDay;
+      generateReport();
+    }
+
+    function setThisYear() {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      const lastDay = new Date(now.getFullYear(), 11, 31);
+      
+      document.getElementById('date-start').valueAsDate = firstDay;
+      document.getElementById('date-end').valueAsDate = lastDay;
+      generateReport();
+    }
+
+    async function generateReport() {
+      const dateStart = document.getElementById('date-start').value;
+      const dateEnd = document.getElementById('date-end').value;
+
+      if (!dateStart || !dateEnd) {
+        alert('Veuillez sélectionner une période');
+        return;
+      }
+
+      try {
+        const [revenuesResult, expensesResult] = await Promise.all([
+          db.from('erp_revenus').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd),
+          db.from('erp_depenses').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd)
+        ]);
+
+        reportData.revenues = revenuesResult.data || [];
+        reportData.expenses = expensesResult.data || [];
+
+        updateKPIs();
+        updateChart();
+        updateCategoryTables();
+        
+        document.getElementById('print-period').textContent = `Du ${formatDate(dateStart)} au ${formatDate(dateEnd)}`;
+        
+      } catch (error) {
+        console.error('Generate report error:', error);
+      }
+    }
+
+    function updateKPIs() {
+      const totalRevenues = reportData.revenues.reduce((sum, r) => sum + parseFloat(r.montant), 0);
+      const totalExpenses = reportData.expenses.reduce((sum, e) => sum + parseFloat(e.montant), 0);
+      const netProfit = totalRevenues - totalExpenses;
+      const margin = totalRevenues > 0 ? ((netProfit / totalRevenues) * 100).toFixed(1) : 0;
+
+      document.getElementById('total-revenues').textContent = formatCurrency(totalRevenues);
+      document.getElementById('total-expenses').textContent = formatCurrency(totalExpenses);
+      document.getElementById('net-profit').textContent = formatCurrency(netProfit);
+      document.getElementById('margin').textContent = margin + '%';
+    }
+
+    function updateChart() {
+      const chartData = prepareRevenueExpenseChart(reportData.revenues, reportData.expenses, 12);
+      
+      const existingChart = Chart.getChart('finance-chart');
+      if (existingChart) {
+        existingChart.destroy();
+      }
+      
+      createBarChart('finance-chart', chartData);
+    }
+
+    function updateCategoryTables() {
+      const revenuesByCategory = {};
+      const expensesByCategory = {};
+
+      reportData.revenues.forEach(r => {
+        const cat = r.categorie || 'Autre';
+        revenuesByCategory[cat] = (revenuesByCategory[cat] || 0) + parseFloat(r.montant);
+      });
+
+      reportData.expenses.forEach(e => {
+        const cat = e.categorie || 'Autre';
+        expensesByCategory[cat] = (expensesByCategory[cat] || 0) + parseFloat(e.montant);
+      });
+
+      const totalRevenues = Object.values(revenuesByCategory).reduce((a, b) => a + b, 0);
+      const totalExpenses = Object.values(expensesByCategory).reduce((a, b) => a + b, 0);
+
+      const revenuesBody = document.getElementById('revenues-category-body');
+      revenuesBody.innerHTML = Object.entries(revenuesByCategory).map(([cat, amount]) => `
+        <tr>
+          <td>${cat}</td>
+          <td>${formatCurrency(amount)}</td>
+          <td>${((amount / totalRevenues) * 100).toFixed(1)}%</td>
+        </tr>
+      `).join('') || '<tr><td colspan="3" style="text-align: center;">Aucune donnée</td></tr>';
+
+      const expensesBody = document.getElementById('expenses-category-body');
+      expensesBody.innerHTML = Object.entries(expensesByCategory).map(([cat, amount]) => `
+        <tr>
+          <td>${cat}</td>
+          <td>${formatCurrency(amount)}</td>
+          <td>${((amount / totalExpenses) * 100).toFixed(1)}%</td>
+        </tr>
+      `).join('') || '<tr><td colspan="3" style="text-align: center;">Aucune donnée</td></tr>';
+    }
+
+    function exportReport() {
+      const data = [
+        { Section: 'Résumé', '': '' },
+        { 'Total Revenus': reportData.revenues.reduce((s, r) => s + parseFloat(r.montant), 0), '': '' },
+        { 'Total Dépenses': reportData.expenses.reduce((s, e) => s + parseFloat(e.montant), 0), '': '' },
+        { 'Bénéfice Net': reportData.revenues.reduce((s, r) => s + parseFloat(r.montant), 0) - reportData.expenses.reduce((s, e) => s + parseFloat(e.montant), 0), '': '' },
+        { Section: 'Revenus', '': '' },
+        ...reportData.revenues.map(r => ({ Date: r.date_transaction, Description: r.description, Montant: r.montant })),
+        { Section: 'Dépenses', '': '' },
+        ...reportData.expenses.map(e => ({ Date: e.date_transaction, Description: e.description, Montant: e.montant }))
+      ];
+      
+      exportToExcel(data, 'rapport-financier', 'Rapport');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(amount);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        setThisMonth();
+      });
+    });
+  </script>
+</body>
+</html>

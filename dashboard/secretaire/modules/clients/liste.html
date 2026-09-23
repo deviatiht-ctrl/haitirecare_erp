@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clients - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+  <script src="../../../../assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Clients</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" id="search-input" placeholder="Rechercher un client...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportClients()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+            <button class="btn btn-primary" onclick="openAddClientModal()">
+              <i data-lucide="plus"></i>
+              Ajouter un client
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="clients-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Type</th>
+                  <th>Email</th>
+                  <th>Téléphone</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="clients-table-body">
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Client Modal -->
+  <div id="add-client-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter un client</h3>
+        <button class="modal-close" onclick="closeAddClientModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="add-client-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select name="type" class="form-select form-input" required>
+            <option value="particulier">Particulier</option>
+            <option value="entreprise">Entreprise</option>
+          </select>
+        </div>
+        <div class="form-row" id="company-name-group" style="display: none;">
+          <div class="form-group">
+            <label class="form-label">Nom de l'entreprise</label>
+            <input type="text" name="company" class="form-input">
+          </div>
+        </div>
+        <div class="form-row" id="person-name-group">
+          <div class="form-group">
+            <label class="form-label">Nom</label>
+            <input type="text" name="nom" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prénom</label>
+            <input type="text" name="prenom" class="form-input">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Téléphone</label>
+            <input type="tel" name="phone" class="form-input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Adresse</label>
+          <input type="text" name="address" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-input form-textarea"></textarea>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddClientModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="submitAddClient()">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allClients = [];
+
+    async function loadClients() {
+      try {
+        const { data: clients } = await db
+          .from('erp_clients')
+          .select('*')
+          .eq('is_active', true)
+          .order('nom');
+        
+        allClients = clients || [];
+        renderClientsTable(allClients);
+      } catch (error) {
+        console.error('Load clients error:', error);
+      }
+    }
+
+    function renderClientsTable(clients) {
+      const tbody = document.getElementById('clients-table-body');
+      
+      if (!clients.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Aucun client</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = clients.map(client => `
+        <tr>
+          <td>
+            <div style="font-weight: var(--font-weight-medium);">${client.nom}</div>
+            ${client.prenom ? `<div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${client.prenom}</div>` : ''}
+            ${client.company ? `<div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${client.company}</div>` : ''}
+          </td>
+          <td><span class="badge badge-secondary">${client.type === 'entreprise' ? 'Entreprise' : 'Particulier'}</span></td>
+          <td>${client.email || '-'}</td>
+          <td>${client.phone || '-'}</td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-btn" onclick="viewClient('${client.id}')">
+                <i data-lucide="eye"></i> Voir
+              </button>
+              <button class="table-action-btn" onclick="editClient('${client.id}')">
+                <i data-lucide="edit"></i>
+              </button>
+              <button class="table-action-btn danger" onclick="deleteClient('${client.id}')">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    function openAddClientModal() {
+      document.getElementById('add-client-modal').classList.remove('hidden');
+    }
+
+    function closeAddClientModal() {
+      document.getElementById('add-client-modal').classList.add('hidden');
+      document.getElementById('add-client-form').reset();
+      document.getElementById('company-name-group').style.display = 'none';
+      document.getElementById('person-name-group').style.display = 'grid';
+    }
+
+    document.querySelector('select[name="type"]').addEventListener('change', (e) => {
+      const isCompany = e.target.value === 'entreprise';
+      document.getElementById('company-name-group').style.display = isCompany ? 'block' : 'none';
+      document.getElementById('person-name-group').style.display = isCompany ? 'none' : 'grid';
+    });
+
+    async function submitAddClient() {
+      const form = document.getElementById('add-client-form');
+      const formData = new FormData(form);
+      
+      const clientData = {
+        nom: formData.get('nom'),
+        prenom: formData.get('prenom'),
+        company: formData.get('company'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        address: formData.get('address'),
+        type: formData.get('type'),
+        notes: formData.get('notes'),
+        created_by: window.currentUser?.id
+      };
+
+      try {
+        await db.from('erp_clients').insert(clientData);
+        closeAddClientModal();
+        await loadClients();
+        logActivity('Création client', 'Clients', `Client ${clientData.nom} créé`);
+      } catch (error) {
+        console.error('Add client error:', error);
+        alert('Erreur lors de l\'ajout');
+      }
+    }
+
+    function viewClient(clientId) {
+      window.location.href = `/modules/clients/fiche.html?id=${clientId}`;
+    }
+
+    async function deleteClient(clientId) {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer ce client ?')) return;
+      
+      try {
+        await db.from('erp_clients').update({ is_active: false }).eq('id', clientId);
+        await loadClients();
+        logActivity('Suppression client', 'Clients', `Client ${clientId} supprimé`);
+      } catch (error) {
+        console.error('Delete client error:', error);
+        alert('Erreur lors de la suppression');
+      }
+    }
+
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const filtered = allClients.filter(c => 
+        c.nom?.toLowerCase().includes(query) ||
+        c.prenom?.toLowerCase().includes(query) ||
+        c.company?.toLowerCase().includes(query) ||
+        c.email?.toLowerCase().includes(query)
+      );
+      renderClientsTable(filtered);
+    });
+
+    function exportClients() {
+      const data = allClients.map(c => ({
+        Nom: c.nom,
+        Prénom: c.prenom || '',
+        Entreprise: c.company || '',
+        Type: c.type === 'entreprise' ? 'Entreprise' : 'Particulier',
+        Email: c.email || '',
+        Téléphone: c.phone || '',
+        Adresse: c.address || '',
+        Notes: c.notes || ''
+      }));
+      
+      exportWithConfig(data, 'clients');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadClients();
+      });
+    });
+  </script>
+</body>
+</html>

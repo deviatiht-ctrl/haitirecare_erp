@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tâches - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Tâches</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="window.location.href='/modules/taches/kanban.html'">
+              <i data-lucide="layout"></i>
+              Vue Kanban
+            </button>
+            <button class="btn btn-secondary" onclick="exportTasks()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+            <button class="btn btn-primary" onclick="openAddTaskModal()">
+              <i data-lucide="plus"></i>
+              Nouvelle tâche
+            </button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <select id="filter-status" class="form-select form-input">
+            <option value="">Tous les statuts</option>
+            <option value="a_faire">À faire</option>
+            <option value="en_cours">En cours</option>
+            <option value="en_revision">En révision</option>
+            <option value="termine">Terminé</option>
+          </select>
+          <select id="filter-priority" class="form-select form-input">
+            <option value="">Toutes les priorités</option>
+            <option value="haute">Haute</option>
+            <option value="moyenne">Moyenne</option>
+            <option value="basse">Basse</option>
+          </select>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" id="my-tasks-only">
+            <span class="text-sm">Mes tâches seulement</span>
+          </label>
+          <button class="btn btn-secondary" onclick="applyFilters()">Filtrer</button>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="tasks-table">
+              <thead>
+                <tr>
+                  <th>Titre</th>
+                  <th>Assigné à</th>
+                  <th>Priorité</th>
+                  <th>Statut</th>
+                  <th>Échéance</th>
+                  <th>Module</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tasks-table-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Task Modal -->
+  <div id="add-task-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Nouvelle tâche</h3>
+        <button class="modal-close" onclick="closeAddTaskModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="add-task-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Titre</label>
+          <input type="text" name="titre" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-input form-textarea"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Assigné à</label>
+            <select name="assigne_a" class="form-select form-input" id="assignee-select">
+              <option value="">Sélectionner</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Priorité</label>
+            <select name="priorite" class="form-select form-input">
+              <option value="moyenne">Moyenne</option>
+              <option value="haute">Haute</option>
+              <option value="basse">Basse</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Échéance</label>
+            <input type="date" name="echeance" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Module</label>
+            <input type="text" name="module_tag" class="form-input" placeholder="Stock, Finance, Client...">
+          </div>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddTaskModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="submitAddTask()">Créer</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allTasks = [];
+    let allUsers = [];
+
+    async function loadUsers() {
+      try {
+        const { data: users } = await db.from('erp_users').select('*').eq('is_active', true).order('last_name');
+        allUsers = users || [];
+        
+        const select = document.getElementById('assignee-select');
+        select.innerHTML = '<option value="">Sélectionner</option>';
+        allUsers.forEach(u => {
+          select.innerHTML += `<option value="${u.id}">${u.first_name} ${u.last_name}</option>`;
+        });
+      } catch (error) {
+        console.error('Load users error:', error);
+      }
+    }
+
+    async function loadTasks() {
+      try {
+        const { data: tasks } = await db
+          .from('erp_taches')
+          .select('*, assigne:erp_users(first_name, last_name), assigne_par:erp_users(first_name, last_name)')
+          .order('created_at', { ascending: false });
+        
+        allTasks = tasks || [];
+        renderTasksTable(allTasks);
+      } catch (error) {
+        console.error('Load tasks error:', error);
+      }
+    }
+
+    function renderTasksTable(tasks) {
+      const tbody = document.getElementById('tasks-table-body');
+      
+      if (!tasks.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucune tâche</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = tasks.map(task => `
+        <tr>
+          <td>
+            <div style="font-weight: var(--font-weight-medium);">${task.titre}</div>
+            ${task.description ? `<div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${task.description.substring(0, 50)}...</div>` : ''}
+          </td>
+          <td>${task.assigne ? `${task.assigne.first_name} ${task.assigne.last_name}` : '-'}</td>
+          <td><span class="badge badge-${task.priorite === 'haute' ? 'danger' : task.priorite === 'basse' ? 'secondary' : 'warning'}">${task.priorite}</span></td>
+          <td><span class="badge badge-${task.statut === 'termine' ? 'success' : task.statut === 'en_cours' ? 'primary' : 'secondary'}">${task.statut.replace('_', ' ')}</span></td>
+          <td>${task.echeance ? formatDate(task.echeance) : '-'}</td>
+          <td>${task.module_tag || '-'}</td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-btn" onclick="updateTaskStatus('${task.id}', 'en_cours')">
+                <i data-lucide="play"></i>
+              </button>
+              <button class="table-action-btn" onclick="updateTaskStatus('${task.id}', 'termine')">
+                <i data-lucide="check"></i>
+              </button>
+              <button class="table-action-btn danger" onclick="deleteTask('${task.id}')">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    function openAddTaskModal() {
+      document.getElementById('add-task-modal').classList.remove('hidden');
+    }
+
+    function closeAddTaskModal() {
+      document.getElementById('add-task-modal').classList.add('hidden');
+      document.getElementById('add-task-form').reset();
+    }
+
+    async function submitAddTask() {
+      const form = document.getElementById('add-task-form');
+      const formData = new FormData(form);
+      
+      const taskData = {
+        titre: formData.get('titre'),
+        description: formData.get('description'),
+        assigne_a: formData.get('assigne_a') || null,
+        assigne_par: window.currentUser?.id,
+        priorite: formData.get('priorite'),
+        echeance: formData.get('echeance') || null,
+        module_tag: formData.get('module_tag'),
+        statut: 'a_faire'
+      };
+
+      try {
+        await db.from('erp_taches').insert(taskData);
+        closeAddTaskModal();
+        await loadTasks();
+        logActivity('Création tâche', 'Tâches', `Tâche ${taskData.titre} créée`);
+      } catch (error) {
+        console.error('Add task error:', error);
+        alert('Erreur lors de la création');
+      }
+    }
+
+    async function updateTaskStatus(taskId, newStatus) {
+      try {
+        await db.from('erp_taches').update({ statut: newStatus }).eq('id', taskId);
+        await loadTasks();
+        logActivity('Modification tâche', 'Tâches', `Tâche ${taskId} mise à ${newStatus}`);
+      } catch (error) {
+        console.error('Update task error:', error);
+      }
+    }
+
+    async function deleteTask(taskId) {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer cette tâche ?')) return;
+      
+      try {
+        await db.from('erp_taches').delete().eq('id', taskId);
+        await loadTasks();
+        logActivity('Suppression tâche', 'Tâches', `Tâche ${taskId} supprimée`);
+      } catch (error) {
+        console.error('Delete task error:', error);
+      }
+    }
+
+    function applyFilters() {
+      const status = document.getElementById('filter-status').value;
+      const priority = document.getElementById('filter-priority').value;
+      const myTasksOnly = document.getElementById('my-tasks-only').checked;
+
+      let filtered = allTasks;
+
+      if (status) {
+        filtered = filtered.filter(t => t.statut === status);
+      }
+
+      if (priority) {
+        filtered = filtered.filter(t => t.priorite === priority);
+      }
+
+      if (myTasksOnly) {
+        filtered = filtered.filter(t => t.assigne_a === window.currentUser?.id);
+      }
+
+      renderTasksTable(filtered);
+    }
+
+    function exportTasks() {
+      const data = allTasks.map(t => ({
+        Titre: t.titre,
+        Description: t.description || '',
+        'Assigné à': t.assigne ? `${t.assigne.first_name} ${t.assigne.last_name}` : '',
+        Priorité: t.priorite,
+        Statut: t.statut.replace('_', ' '),
+        Échéance: t.echeance ? formatDate(t.echeance) : '',
+        Module: t.module_tag || '',
+        'Créé le': formatDate(t.created_at)
+      }));
+      
+      exportWithConfig(data, 'tasks');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadUsers();
+        loadTasks();
+      });
+    });
+  </script>
+</body>
+</html>

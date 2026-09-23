@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord Commercial - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/supabase.js?v=7"></script>
+  <script src="../../assets/js/auth.js?v=7"></script>
+  <script src="../../assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Tableau de bord</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="kpi-grid">
+          <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="users"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Total clients</div>
+              <div class="kpi-value" id="clients-count" style="color: white;">0</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="user-plus"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Nouveaux ce mois</div>
+              <div class="kpi-value" id="new-clients" style="color: white;">0</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="check-square"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Mes tâches</div>
+              <div class="kpi-value" id="tasks-count" style="color: white;">0</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="package"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Articles en stock</div>
+              <div class="kpi-value" id="stock-count" style="color: white;">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Clients récents</h3>
+              <button class="btn btn-ghost btn-sm" onclick="window.location.href='/modules/clients/liste.html'">Voir tout</button>
+            </div>
+            <div id="clients-list" class="loading">
+              <div class="loading-spinner"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Mes tâches</h3>
+              <button class="btn btn-ghost btn-sm" onclick="window.location.href='/modules/taches/liste.html'">Voir tout</button>
+            </div>
+            <div id="tasks-list" class="loading">
+              <div class="loading-spinner"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function loadDashboardData() {
+      try {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const { count: clientsCount } = await db.from('erp_clients').select('*', { count: 'exact', head: true }).eq('is_active', true);
+        document.getElementById('clients-count').textContent = clientsCount || 0;
+
+        const { count: newClients } = await db.from('erp_clients').select('*', { count: 'exact', head: true }).gte('created_at', firstDay.toISOString());
+        document.getElementById('new-clients').textContent = newClients || 0;
+
+        const { count: tasksCount } = await db.from('erp_taches').select('*', { count: 'exact', head: true }).eq('assigne_a', window.currentUser?.id).eq('statut', 'en_cours');
+        document.getElementById('tasks-count').textContent = tasksCount || 0;
+
+        const { count: stockCount } = await db.from('erp_produits').select('*', { count: 'exact', head: true }).eq('is_active', true).gt('quantite', 0);
+        document.getElementById('stock-count').textContent = stockCount || 0;
+
+        await loadRecentClients();
+        await loadTasks();
+      } catch (error) {
+        console.error('Dashboard load error:', error);
+      }
+    }
+
+    async function loadRecentClients() {
+      try {
+        const { data: clients } = await db.from('erp_clients').select('*').order('created_at', { ascending: false }).limit(5);
+        const container = document.getElementById('clients-list');
+        
+        if (!clients?.length) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucun client</p></div>';
+          return;
+        }
+
+        container.innerHTML = clients.map(c => `
+          <div style="padding: var(--space-3); border-bottom: 1px solid var(--clr-border);">
+            <div style="font-weight: var(--font-weight-medium);">${c.nom} ${c.prenom || ''}</div>
+            <div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${c.email || c.phone || ''}</div>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Clients load error:', error);
+      }
+    }
+
+    async function loadTasks() {
+      try {
+        const { data: tasks } = await db.from('erp_taches').select('*').eq('assigne_a', window.currentUser?.id).order('created_at', { ascending: false }).limit(5);
+        const container = document.getElementById('tasks-list');
+        
+        if (!tasks?.length) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucune tâche</p></div>';
+          return;
+        }
+
+        container.innerHTML = tasks.map(t => `
+          <div style="padding: var(--space-3); border-bottom: 1px solid var(--clr-border);">
+            <div style="font-weight: var(--font-weight-medium);">${t.titre}</div>
+            <div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${t.echeance ? 'Échéance: ' + formatDate(t.echeance) : ''}</div>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Tasks load error:', error);
+      }
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadDashboardData();
+      });
+    });
+  </script>
+</body>
+</html>

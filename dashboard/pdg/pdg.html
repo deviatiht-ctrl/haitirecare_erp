@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord PDG - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="../../assets/js/supabase.js?v=7"></script>
+  <script src="../../assets/js/auth.js?v=7"></script>
+  <script src="../../assets/js/layout.js?v=7"></script>
+  <script src="../../assets/js/charts.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Tableau de bord</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+        <!-- KPI Row 1 -->
+        <div class="kpi-grid" id="kpi-row-1">
+          <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="trending-up"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Revenus du mois</div>
+              <div class="kpi-value" id="revenues-month" style="color: white;">0 HTG</div>
+              <div class="kpi-trend" style="color: rgba(255,255,255,0.8);">+12.5% vs mois dernier</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon danger">
+              <i data-lucide="trending-down"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Dépenses du mois</div>
+              <div class="kpi-value" id="expenses-month">0 HTG</div>
+              <div class="kpi-trend negative">+8.3% vs mois dernier</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="dollar-sign"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Résultat net</div>
+              <div class="kpi-value" id="net-result" style="color: white;">0 HTG</div>
+              <div class="kpi-trend" style="color: rgba(255,255,255,0.8);">+4.2% vs mois dernier</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon success">
+              <i data-lucide="users"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Clients actifs</div>
+              <div class="kpi-value" id="active-clients">0</div>
+              <div class="kpi-trend positive">+3 nouveaux ce mois</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Row 2 -->
+        <div class="kpi-grid" id="kpi-row-2">
+          <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="package"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Articles en stock</div>
+              <div class="kpi-value" id="stock-items" style="color: white;">0</div>
+              <div class="kpi-trend" style="color: rgba(255,255,255,0.8);">Total inventaire</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="alert-triangle"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Alertes stock faible</div>
+              <div class="kpi-value" id="low-stock-alerts" style="color: white;">0</div>
+              <div class="kpi-trend" style="color: rgba(255,255,255,0.8);">Action requise</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="check-square"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Tâches en cours</div>
+              <div class="kpi-value" id="tasks-in-progress" style="color: white;">0</div>
+              <div class="kpi-trend" style="color: rgba(255,255,255,0.8);">En cours d'exécution</div>
+            </div>
+          </div>
+          <div class="kpi-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); border: none;">
+            <div class="kpi-icon" style="background: rgba(255,255,255,0.2); color: white;">
+              <i data-lucide="user-check"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label" style="color: rgba(255,255,255,0.9);">Employés présents</div>
+              <div class="kpi-value" id="employees-present" style="color: white;">0</div>
+              <div class="kpi-trend" style="color: rgba(255,255,255,0.8);">Aujourd'hui</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row">
+          <div class="chart-container">
+            <div class="chart-header">
+              <h3 class="chart-title">Revenus vs Dépenses (6 derniers mois)</h3>
+            </div>
+            <div class="chart-canvas">
+              <canvas id="revenue-expense-chart"></canvas>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-header">
+              <h3 class="chart-title">Répartition des dépenses</h3>
+            </div>
+            <div class="chart-canvas">
+              <canvas id="expense-distribution-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity Feed -->
+        <div class="activity-feed">
+          <div class="activity-feed-header">
+            <h3 class="activity-feed-title">Activité récente</h3>
+            <button class="btn btn-ghost btn-sm">Voir tout</button>
+          </div>
+          <div class="activity-list" id="activity-list">
+            <div class="loading">
+              <div class="loading-spinner"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Users Section -->
+        <div class="card" style="margin-top: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Utilisateurs du système</h3>
+            <button class="btn btn-primary" onclick="window.location.href='/modules/users/liste.html'">
+              <i data-lucide="plus"></i>
+              Ajouter un utilisateur
+            </button>
+          </div>
+          <div class="table-container">
+            <table class="table" id="users-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Rôle</th>
+                  <th>Dernier accès</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Load dashboard data
+    async function loadDashboardData() {
+      try {
+        // Get current month
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Load revenues
+        const { data: revenues } = await db
+          .from('erp_revenus')
+          .select('montant')
+          .gte('date_transaction', firstDay.toISOString());
+        
+        const totalRevenues = revenues?.reduce((sum, r) => sum + parseFloat(r.montant), 0) || 0;
+        document.getElementById('revenues-month').textContent = formatCurrency(totalRevenues);
+        
+        // Load expenses
+        const { data: expenses } = await db
+          .from('erp_depenses')
+          .select('montant')
+          .gte('date_transaction', firstDay.toISOString());
+        
+        const totalExpenses = expenses?.reduce((sum, e) => sum + parseFloat(e.montant), 0) || 0;
+        document.getElementById('expenses-month').textContent = formatCurrency(totalExpenses);
+        
+        // Net result
+        const netResult = totalRevenues - totalExpenses;
+        document.getElementById('net-result').textContent = formatCurrency(netResult);
+        
+        // Active clients
+        const { count: clientsCount } = await db
+          .from('erp_clients')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true);
+        
+        document.getElementById('active-clients').textContent = clientsCount || 0;
+        
+        // Stock items
+        const { count: stockCount } = await db
+          .from('erp_produits')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true);
+        
+        document.getElementById('stock-items').textContent = stockCount || 0;
+        
+        // Low stock alerts
+        const { data: lowStockProducts } = await db
+          .from('erp_produits')
+          .select('*')
+          .eq('is_active', true);
+        
+        const lowStockCount = lowStockProducts?.filter(p => p.quantite <= p.quantite_min).length || 0;
+        
+        document.getElementById('low-stock-alerts').textContent = lowStockCount || 0;
+        
+        // Tasks in progress
+        const { count: tasksCount } = await db
+          .from('erp_taches')
+          .select('*', { count: 'exact', head: true })
+          .eq('statut', 'en_cours');
+        
+        document.getElementById('tasks-in-progress').textContent = tasksCount || 0;
+        
+        // Employees present today
+        const today = new Date().toISOString().split('T')[0];
+        const { count: presentCount } = await db
+          .from('erp_presences')
+          .select('*', { count: 'exact', head: true })
+          .eq('date_presence', today)
+          .eq('statut', 'present');
+        
+        document.getElementById('employees-present').textContent = presentCount || 0;
+        
+        // Load charts
+        await loadCharts();
+        
+        // Load activity feed
+        await loadActivityFeed();
+        
+        // Load users table
+        await loadUsersTable();
+        
+      } catch (error) {
+        console.error('Dashboard load error:', error);
+      }
+    }
+
+    // Format currency
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(amount);
+    }
+
+    // Load charts
+    async function loadCharts() {
+      try {
+        // Get last 6 months data
+        const { data: allRevenues } = await db
+          .from('erp_revenus')
+          .select('date_transaction, montant')
+          .order('date_transaction', { ascending: true });
+        
+        const { data: allExpenses } = await db
+          .from('erp_depenses')
+          .select('date_transaction, montant')
+          .order('date_transaction', { ascending: true });
+        
+        // Revenue vs Expense chart
+        const revenueExpenseData = prepareRevenueExpenseChart(allRevenues || [], allExpenses || [], 6);
+        createBarChart('revenue-expense-chart', revenueExpenseData);
+        
+        // Expense distribution chart
+        const expenseDistributionData = prepareExpenseDistributionChart(allExpenses || []);
+        createDoughnutChart('expense-distribution-chart', expenseDistributionData);
+        
+      } catch (error) {
+        console.error('Charts load error:', error);
+      }
+    }
+
+    // Load activity feed
+    async function loadActivityFeed() {
+      try {
+        const { data: activities } = await db
+          .from('erp_activites')
+          .select('*, erp_users(first_name, last_name)')
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        const activityList = document.getElementById('activity-list');
+        
+        if (!activities || activities.length === 0) {
+          activityList.innerHTML = '<div class="empty-state"><p class="text-muted">Aucune activité récente</p></div>';
+          return;
+        }
+        
+        activityList.innerHTML = activities.map(activity => `
+          <div class="activity-item">
+            <div class="activity-icon">
+              <i data-lucide="activity"></i>
+            </div>
+            <div class="activity-content">
+              <div class="activity-text">
+                <strong>${activity.erp_users?.first_name} ${activity.erp_users?.last_name}</strong> ${activity.action}
+              </div>
+              <div class="activity-meta">
+                <span class="activity-time">${formatTimeAgo(activity.created_at)}</span>
+                <span class="activity-module">${activity.module || 'Système'}</span>
+              </div>
+            </div>
+          </div>
+        `).join('');
+        
+        lucide.createIcons();
+        
+      } catch (error) {
+        console.error('Activity feed error:', error);
+      }
+    }
+
+    // Load users table
+    async function loadUsersTable() {
+      try {
+        const { data: users } = await db
+          .from('erp_users')
+          .select('*, erp_postes(name)')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        const tableBody = document.getElementById('users-table-body');
+        
+        if (!users || users.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Aucun utilisateur</td></tr>';
+          return;
+        }
+        
+        tableBody.innerHTML = users.map(user => `
+          <tr>
+            <td>${user.first_name} ${user.last_name}</td>
+            <td><span class="badge badge-secondary">${formatRole(user.role)}</span></td>
+            <td>${user.last_login ? formatDate(user.last_login) : 'Jamais'}</td>
+            <td>
+              <span class="status-badge ${user.is_active ? 'active' : 'inactive'}">
+                ${user.is_active ? 'Actif' : 'Inactif'}
+              </span>
+            </td>
+            <td>
+              <div class="table-actions">
+                <button class="table-action-btn" onclick="window.location.href='/modules/users/profil.html?id=${user.id}'">
+                  <i data-lucide="eye"></i> Voir
+                </button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+        
+        lucide.createIcons();
+        
+      } catch (error) {
+        console.error('Users table error:', error);
+      }
+    }
+
+    // Format date
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    // Format time ago
+    function formatTimeAgo(dateStr) {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const seconds = Math.floor((now - date) / 1000);
+      
+      if (seconds < 60) return 'À l\'instant';
+      if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`;
+      if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`;
+      if (seconds < 604800) return `Il y a ${Math.floor(seconds / 86400)} j`;
+      
+      return formatDate(dateStr);
+    }
+
+    // Initialize dashboard
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadDashboardData();
+      });
+    });
+  </script>
+</body>
+</html>

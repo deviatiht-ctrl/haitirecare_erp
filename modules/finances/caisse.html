@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caisse - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <link rel="stylesheet" href="/assets/css/print.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Caisse</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="window.print()">
+              <i data-lucide="printer"></i>
+              Imprimer
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="margin-bottom: var(--space-6);">
+          <div class="kpi-card">
+            <div class="kpi-icon primary">
+              <i data-lucide="wallet"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Solde d'ouverture</div>
+              <div class="kpi-value" id="opening-balance">0 HTG</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon success">
+              <i data-lucide="arrow-down-circle"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Entrées</div>
+              <div class="kpi-value" id="total-entries">0 HTG</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon danger">
+              <i data-lucide="arrow-up-circle"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Sorties</div>
+              <div class="kpi-value" id="total-exits">0 HTG</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon primary">
+              <i data-lucide="dollar-sign"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Solde de fermeture</div>
+              <div class="kpi-value" id="closing-balance">0 HTG</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Opérations rapides</h3>
+          </div>
+          <div class="quick-actions">
+            <div class="quick-action" onclick="openOperationModal('entree')">
+              <div class="quick-action-icon">
+                <i data-lucide="arrow-down-circle"></i>
+              </div>
+              <div class="quick-action-title">Entrée</div>
+            </div>
+            <div class="quick-action" onclick="openOperationModal('sortie')">
+              <div class="quick-action-icon">
+                <i data-lucide="arrow-up-circle"></i>
+              </div>
+              <div class="quick-action-title">Sortie</div>
+            </div>
+            <div class="quick-action" onclick="openOperationModal('vente')">
+              <div class="quick-action-icon">
+                <i data-lucide="shopping-cart"></i>
+              </div>
+              <div class="quick-action-title">Vente</div>
+            </div>
+            <div class="quick-action" onclick="openOperationModal('remboursement')">
+              <div class="quick-action-icon">
+                <i data-lucide="rotate-ccw"></i>
+              </div>
+              <div class="quick-action-title">Remboursement</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Historique des opérations</h3>
+          </div>
+          <div class="table-container">
+            <table class="table" id="operations-table">
+              <thead>
+                <tr>
+                  <th>Heure</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>Montant</th>
+                </tr>
+              </thead>
+              <tbody id="operations-table-body">
+                <tr>
+                  <td colspan="4" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Operation Modal -->
+  <div id="operation-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="operation-modal-title">Nouvelle opération</h3>
+        <button class="modal-close" onclick="closeOperationModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="operation-form" class="modal-body">
+        <input type="hidden" name="type" id="operation-type">
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" name="description" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Montant</label>
+          <input type="number" name="montant" class="form-input" min="0" step="0.01" required>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeOperationModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="submitOperation()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentCaisse = null;
+    let allOperations = [];
+
+    async function loadTodayCaisse() {
+      const today = new Date().toISOString().split('T')[0];
+      
+      try {
+        const { data: caisse } = await db.from('erp_caisse').select('*').eq('date_caisse', today).single();
+        
+        if (!caisse) {
+          const { data: newCaisse } = await db.from('erp_caisse').insert({
+            date_caisse: today,
+            solde_ouverture: 0,
+            created_by: window.currentUser?.id
+          }).select().single();
+          currentCaisse = newCaisse;
+        } else {
+          currentCaisse = caisse;
+        }
+        
+        updateKPIs();
+        await loadOperations();
+        
+      } catch (error) {
+        console.error('Load caisse error:', error);
+      }
+    }
+
+    async function loadOperations() {
+      if (!currentCaisse) return;
+      
+      try {
+        const { data: operations } = await db
+          .from('erp_caisse_operations')
+          .select('*')
+          .eq('caisse_id', currentCaisse.id)
+          .order('created_at', { ascending: false });
+        
+        allOperations = operations || [];
+        renderOperationsTable(allOperations);
+      } catch (error) {
+        console.error('Load operations error:', error);
+      }
+    }
+
+    function renderOperationsTable(operations) {
+      const tbody = document.getElementById('operations-table-body');
+      
+      if (!operations.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Aucune opération</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = operations.map(op => `
+        <tr>
+          <td>${new Date(op.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+          <td>
+            <span class="badge badge-${op.type === 'entree' ? 'success' : 'danger'}">
+              ${op.type === 'entree' ? 'Entrée' : 'Sortie'}
+            </span>
+          </td>
+          <td>${op.description}</td>
+          <td class="${op.type === 'entree' ? 'text-success' : 'text-danger'} font-semibold">
+            ${op.type === 'entree' ? '+' : '-'}${formatCurrency(op.montant)}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function updateKPIs() {
+      if (!currentCaisse) return;
+      
+      document.getElementById('opening-balance').textContent = formatCurrency(currentCaisse.solde_ouverture || 0);
+      
+      const entries = allOperations.filter(o => o.type === 'entree').reduce((sum, o) => sum + parseFloat(o.montant), 0);
+      const exits = allOperations.filter(o => o.type === 'sortie').reduce((sum, o) => sum + parseFloat(o.montant), 0);
+      
+      document.getElementById('total-entries').textContent = formatCurrency(entries);
+      document.getElementById('total-exits').textContent = formatCurrency(exits);
+      
+      const closingBalance = (currentCaisse.solde_ouverture || 0) + entries - exits;
+      document.getElementById('closing-balance').textContent = formatCurrency(closingBalance);
+    }
+
+    function openOperationModal(type) {
+      document.getElementById('operation-modal').classList.remove('hidden');
+      document.getElementById('operation-type').value = type;
+      
+      const titles = {
+        'entree': 'Nouvelle entrée',
+        'sortie': 'Nouvelle sortie',
+        'vente': 'Nouvelle vente',
+        'remboursement': 'Remboursement'
+      };
+      document.getElementById('operation-modal-title').textContent = titles[type] || 'Nouvelle opération';
+    }
+
+    function closeOperationModal() {
+      document.getElementById('operation-modal').classList.add('hidden');
+      document.getElementById('operation-form').reset();
+    }
+
+    async function submitOperation() {
+      const form = document.getElementById('operation-form');
+      const formData = new FormData(form);
+      
+      const operationData = {
+        caisse_id: currentCaisse.id,
+        type: formData.get('type'),
+        description: formData.get('description'),
+        montant: parseFloat(formData.get('montant')),
+        created_by: window.currentUser?.id
+      };
+
+      try {
+        await db.from('erp_caisse_operations').insert(operationData);
+        closeOperationModal();
+        await loadOperations();
+        updateKPIs();
+        logActivity('Opération caisse', 'Finances', `${operationData.type} de ${operationData.montant}`);
+      } catch (error) {
+        console.error('Submit operation error:', error);
+        alert('Erreur lors de l\'enregistrement');
+      }
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(amount);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadTodayCaisse();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messages - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Messages</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="dashboard-grid-3" style="height: calc(100vh - 200px);">
+          <!-- Conversations List -->
+          <div class="card" style="display: flex; flex-direction: column;">
+            <div class="card-header">
+              <h3 class="card-title">Conversations</h3>
+              <button class="btn btn-primary btn-sm" onclick="openNewMessageModal()">
+                <i data-lucide="plus"></i>
+                Nouveau
+              </button>
+            </div>
+            <div id="conversations-list" style="flex: 1; overflow-y: auto;">
+              <div class="loading">
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Area -->
+          <div class="card" style="display: flex; flex-direction: column; flex: 2;">
+            <div class="card-header">
+              <h3 class="card-title" id="chat-title">Sélectionnez une conversation</h3>
+            </div>
+            <div id="messages-container" style="flex: 1; overflow-y: auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3);">
+              <div class="empty-state">
+                <p class="text-muted">Sélectionnez une conversation pour commencer</p>
+              </div>
+            </div>
+            <div id="message-input-area" style="padding: var(--space-4); border-top: 1px solid var(--clr-border); display: none;">
+              <div style="display: flex; gap: var(--space-3);">
+                <input type="text" id="message-input" class="form-input" placeholder="Écrivez votre message..." style="flex: 1;">
+                <button class="btn btn-primary" onclick="sendMessage()">
+                  <i data-lucide="send"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- User List for New Message -->
+          <div class="card" style="display: flex; flex-direction: column;">
+            <div class="card-header">
+              <h3 class="card-title">Utilisateurs</h3>
+            </div>
+            <div id="users-list" style="flex: 1; overflow-y: auto;">
+              <div class="loading">
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Message Modal -->
+  <div id="new-message-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Nouveau message</h3>
+        <button class="modal-close" onclick="closeNewMessageModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Destinataire</label>
+          <select id="message-recipient" class="form-select form-input">
+            <option value="">Sélectionner un utilisateur</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message</label>
+          <textarea id="message-content" class="form-input form-textarea" rows="4" placeholder="Écrivez votre message..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeNewMessageModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sendNewMessage()">Envoyer</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentConversation = null;
+
+    async function loadConversations() {
+      try {
+        const { data: conversations } = await db
+          .from('erp_messages')
+          .select('*, sender:erp_users(first_name, last_name), recipient:erp_users(first_name, last_name)')
+          .or(`sender_id.eq.${window.currentUser?.id},recipient_id.eq.${window.currentUser?.id}`)
+          .order('created_at', { ascending: false });
+
+        const container = document.getElementById('conversations-list');
+        
+        if (!conversations || conversations.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucune conversation</p></div>';
+          return;
+        }
+
+        // Group by conversation partner
+        const grouped = {};
+        conversations.forEach(msg => {
+          const partnerId = msg.sender_id === window.currentUser.id ? msg.recipient_id : msg.sender_id;
+          const partner = msg.sender_id === window.currentUser.id ? msg.recipient : msg.sender;
+          if (!grouped[partnerId]) {
+            grouped[partnerId] = {
+              partnerId,
+              partner,
+              lastMessage: msg,
+              unread: msg.recipient_id === window.currentUser.id && !msg.is_read
+            };
+          }
+        });
+
+        container.innerHTML = Object.values(grouped).map(conv => `
+          <div class="conversation-item" onclick="selectConversation('${conv.partnerId}')" style="padding: var(--space-3); border-bottom: 1px solid var(--clr-border); cursor: pointer; ${conv.unread ? 'background: var(--clr-bg-soft);' : ''}">
+            <div style="font-weight: var(--font-weight-medium);">${conv.partner?.first_name} ${conv.partner?.last_name || ''}</div>
+            <div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${conv.lastMessage.content.substring(0, 50)}...</div>
+            <div style="font-size: var(--font-size-xs); color: var(--clr-text-muted); margin-top: var(--space-1);">${formatTimeAgo(conv.lastMessage.created_at)}</div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Load conversations error:', error);
+      }
+    }
+
+    async function selectConversation(partnerId) {
+      currentConversation = partnerId;
+      
+      try {
+        const { data: partner } = await db.from('erp_users').select('*').eq('id', partnerId).single();
+        document.getElementById('chat-title').textContent = `${partner.first_name} ${partner.last_name}`;
+        
+        await loadMessages(partnerId);
+        document.getElementById('message-input-area').style.display = 'block';
+        
+        // Mark messages as read
+        await db.from('erp_messages').update({ is_read: true }).eq('recipient_id', window.currentUser.id).eq('sender_id', partnerId);
+        
+      } catch (error) {
+        console.error('Select conversation error:', error);
+      }
+    }
+
+    async function loadMessages(partnerId) {
+      try {
+        const { data: messages } = await db
+          .from('erp_messages')
+          .select('*, sender:erp_users(first_name, last_name)')
+          .or(`and(sender_id.eq.${window.currentUser.id},recipient_id.eq.${partnerId}),and(sender_id.eq.${partnerId},recipient_id.eq.${window.currentUser.id})`)
+          .order('created_at', { ascending: true });
+
+        const container = document.getElementById('messages-container');
+        
+        if (!messages || messages.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucun message</p></div>';
+          return;
+        }
+
+        container.innerHTML = messages.map(msg => `
+          <div class="message-item" style="padding: var(--space-3); border-radius: 12px; max-width: 70%; ${msg.sender_id === window.currentUser.id ? 'align-self: flex-end; background: var(--clr-primary); color: white;' : 'align-self: flex-start; background: var(--clr-bg-soft);'}">
+            <div style="font-size: var(--font-size-sm);">${msg.content}</div>
+            <div style="font-size: var(--font-size-xs); opacity: 0.7; margin-top: var(--space-1);">${formatTime(msg.created_at)}</div>
+          </div>
+        `).join('');
+
+        container.scrollTop = container.scrollHeight;
+        
+      } catch (error) {
+        console.error('Load messages error:', error);
+      }
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('message-input');
+      const content = input.value.trim();
+      
+      if (!content || !currentConversation) return;
+      
+      try {
+        await db.from('erp_messages').insert({
+          sender_id: window.currentUser.id,
+          recipient_id: currentConversation,
+          content,
+          is_read: false
+        });
+        
+        input.value = '';
+        await loadMessages(currentConversation);
+        await loadConversations();
+        
+        // Log activity
+        await db.from('erp_activites').insert({
+          user_id: window.currentUser.id,
+          action: 'Message envoyé',
+          module: 'Communication',
+          details: `Message envoyé à l'utilisateur ${currentConversation}`
+        });
+        
+      } catch (error) {
+        console.error('Send message error:', error);
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const { data: users } = await db.from('erp_users').select('*').eq('is_active', true).neq('id', window.currentUser?.id);
+        
+        const container = document.getElementById('users-list');
+        const select = document.getElementById('message-recipient');
+        
+        if (!users || users.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucun utilisateur</p></div>';
+          return;
+        }
+
+        container.innerHTML = users.map(user => `
+          <div class="user-item" style="padding: var(--space-3); border-bottom: 1px solid var(--clr-border); cursor: pointer;" onclick="selectConversation('${user.id}')">
+            <div style="font-weight: var(--font-weight-medium);">${user.first_name} ${user.last_name}</div>
+            <div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${formatRole(user.role)}</div>
+          </div>
+        `).join('');
+
+        select.innerHTML = '<option value="">Sélectionner un utilisateur</option>' + 
+          users.map(user => `<option value="${user.id}">${user.first_name} ${user.last_name} (${formatRole(user.role)})</option>`).join('');
+
+      } catch (error) {
+        console.error('Load users error:', error);
+      }
+    }
+
+    function openNewMessageModal() {
+      document.getElementById('new-message-modal').classList.remove('hidden');
+    }
+
+    function closeNewMessageModal() {
+      document.getElementById('new-message-modal').classList.add('hidden');
+      document.getElementById('message-content').value = '';
+      document.getElementById('message-recipient').value = '';
+    }
+
+    async function sendNewMessage() {
+      const recipientId = document.getElementById('message-recipient').value;
+      const content = document.getElementById('message-content').value.trim();
+      
+      if (!recipientId || !content) {
+        alert('Veuillez remplir tous les champs');
+        return;
+      }
+      
+      try {
+        await db.from('erp_messages').insert({
+          sender_id: window.currentUser.id,
+          recipient_id: recipientId,
+          content,
+          is_read: false
+        });
+        
+        closeNewMessageModal();
+        await loadConversations();
+        
+      } catch (error) {
+        console.error('Send new message error:', error);
+      }
+    }
+
+    function formatRole(role) {
+      const roles = {
+        'pdg': 'PDG',
+        'secretaire': 'Secrétaire',
+        'comptable': 'Comptable',
+        'responsable_stock': 'Resp. Stock',
+        'commercial': 'Commercial',
+        'rh': 'RH',
+        'employe': 'Employé'
+      };
+      return roles[role] || role;
+    }
+
+    function formatTime(dateStr) {
+      return new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatTimeAgo(dateStr) {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const seconds = Math.floor((now - date) / 1000);
+      
+      if (seconds < 60) return 'À l\'instant';
+      if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`;
+      if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`;
+      
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    // Enter key to send message
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && document.activeElement.id === 'message-input') {
+        sendMessage();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadConversations();
+        loadUsers();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performances - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Performances</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportPerformances()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+            <button class="btn btn-primary" onclick="openAddReviewModal()">
+              <i data-lucide="plus"></i>
+              Nouvelle évaluation
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="performances-table">
+              <thead>
+                <tr>
+                  <th>Employé</th>
+                  <th>Période</th>
+                  <th>Score</th>
+                  <th>Objectifs atteints</th>
+                  <th>Commentaire</th>
+                  <th>Évaluateur</th>
+                </tr>
+              </thead>
+              <tbody id="performances-table-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allPerformances = [];
+    let allEmployees = [];
+
+    async function loadEmployees() {
+      try {
+        const { data: employees } = await db.from('erp_users').select('*').eq('is_active', true).order('last_name');
+        allEmployees = employees || [];
+      } catch (error) {
+        console.error('Load employees error:', error);
+      }
+    }
+
+    async function loadPerformances() {
+      try {
+        const { data: performances } = await db
+          .from('erp_performances')
+          .select('*, erp_users(first_name, last_name), evaluateur:erp_users(first_name, last_name)')
+          .order('created_at', { ascending: false });
+        
+        allPerformances = performances || [];
+        renderPerformancesTable(allPerformances);
+      } catch (error) {
+        console.error('Load performances error:', error);
+      }
+    }
+
+    function renderPerformancesTable(performances) {
+      const tbody = document.getElementById('performances-table-body');
+      
+      if (!performances.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucune évaluation</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = performances.map(p => `
+        <tr>
+          <td>${p.erp_users?.first_name} ${p.erp_users?.last_name || ''}</td>
+          <td>${p.periode}</td>
+          <td>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+              <div class="progress" style="width: 100px; height: 8px;">
+                <div class="progress-bar ${p.score >= 80 ? 'success' : p.score >= 50 ? 'warning' : 'danger'}" style="width: ${p.score}%"></div>
+              </div>
+              <span>${p.score}/100</span>
+            </div>
+          </td>
+          <td>${p.objectifs_atteints ? 'Oui' : 'Non'}</td>
+          <td>${p.commentaire || '-'}</td>
+          <td>${p.evaluateur?.first_name} ${p.evaluateur?.last_name || ''}</td>
+        </tr>
+      `).join('');
+    }
+
+    function openAddReviewModal() {
+      alert('Formulaire d\'évaluation à implémenter');
+    }
+
+    function exportPerformances() {
+      const data = allPerformances.map(p => ({
+        Employé: `${p.erp_users?.first_name} ${p.erp_users?.last_name || ''}`,
+        Période: p.periode,
+        Score: p.score,
+        'Objectifs atteints': p.objectifs_atteints ? 'Oui' : 'Non',
+        Commentaire: p.commentaire || '',
+        Évaluateur: `${p.evaluateur?.first_name} ${p.evaluateur?.last_name || ''}`
+      }));
+      
+      exportToExcel(data, 'performances', 'Performances');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadEmployees();
+        loadPerformances();
+      });
+    });
+  </script>
+</body>
+</html>

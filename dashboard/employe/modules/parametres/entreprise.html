@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres Entreprise - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Paramètres Entreprise</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Informations de l'entreprise</h3>
+          </div>
+          <form id="company-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nom de l'entreprise</label>
+                <input type="text" id="company-name" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email de contact</label>
+                <input type="email" id="company-email" class="form-input">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Téléphone</label>
+                <input type="tel" id="company-phone" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Site web</label>
+                <input type="url" id="company-website" class="form-input">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Adresse</label>
+              <input type="text" id="company-address" class="form-input">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Ville</label>
+                <input type="text" id="company-city" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Pays</label>
+                <input type="text" id="company-country" class="form-input">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">N° RC</label>
+                <input type="text" id="company-rc" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">N° IFU</label>
+                <input type="text" id="company-ifu" class="form-input">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Devise par défaut</label>
+              <select id="company-currency" class="form-select form-input">
+                <option value="HTG">HTG - Gourde haïtienne</option>
+                <option value="USD">USD - Dollar américain</option>
+                <option value="EUR">EUR - Euro</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="saveCompanySettings()">Enregistrer</button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function loadCompanySettings() {
+      try {
+        const { data: settings } = await db.from('erp_settings').select('*').single();
+        
+        if (settings) {
+          document.getElementById('company-name').value = settings.company_name || '';
+          document.getElementById('company-email').value = settings.company_email || '';
+          document.getElementById('company-phone').value = settings.company_phone || '';
+          document.getElementById('company-website').value = settings.company_website || '';
+          document.getElementById('company-address').value = settings.company_address || '';
+          document.getElementById('company-city').value = settings.company_city || '';
+          document.getElementById('company-country').value = settings.company_country || '';
+          document.getElementById('company-rc').value = settings.company_rc || '';
+          document.getElementById('company-ifu').value = settings.company_ifu || '';
+          document.getElementById('company-currency').value = settings.default_currency || 'HTG';
+        }
+      } catch (error) {
+        console.error('Load settings error:', error);
+      }
+    }
+
+    async function saveCompanySettings() {
+      const settings = {
+        company_name: document.getElementById('company-name').value,
+        company_email: document.getElementById('company-email').value,
+        company_phone: document.getElementById('company-phone').value,
+        company_website: document.getElementById('company-website').value,
+        company_address: document.getElementById('company-address').value,
+        company_city: document.getElementById('company-city').value,
+        company_country: document.getElementById('company-country').value,
+        company_rc: document.getElementById('company-rc').value,
+        company_ifu: document.getElementById('company-ifu').value,
+        default_currency: document.getElementById('company-currency').value
+      };
+
+      try {
+        const { data: existing } = await db.from('erp_settings').select('id').single();
+        
+        if (existing) {
+          await db.from('erp_settings').update(settings).eq('id', existing.id);
+        } else {
+          await db.from('erp_settings').insert(settings);
+        }
+        
+        alert('Paramètres enregistrés avec succès');
+        logActivity('Modification paramètres', 'Paramètres', 'Paramètres entreprise modifiés');
+      } catch (error) {
+        console.error('Save settings error:', error);
+        alert('Erreur lors de l\'enregistrement');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadCompanySettings();
+      });
+    });
+  </script>
+</body>
+</html>

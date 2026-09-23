@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profil Utilisateur - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Profil Utilisateur</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <button class="btn btn-secondary" onclick="window.location.href='/modules/users/liste.html'">
+            <i data-lucide="arrow-left"></i>
+            Retour
+          </button>
+        </div>
+
+        <div class="dashboard-grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Informations personnelles</h3>
+              <button class="btn btn-ghost btn-sm" id="edit-profile-btn" onclick="toggleEditMode()">
+                <i data-lucide="edit"></i>
+              </button>
+            </div>
+            <form id="profile-form">
+              <div class="form-group">
+                <label class="form-label">Prénom</label>
+                <input type="text" id="first-name" class="form-input" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nom</label>
+                <input type="text" id="last-name" class="form-input" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="email" class="form-input" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Téléphone</label>
+                <input type="tel" id="phone" class="form-input" disabled>
+              </div>
+              <div class="form-group hidden" id="save-buttons">
+                <button type="button" class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" onclick="toggleEditMode()">Annuler</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Informations système</h3>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rôle</label>
+              <div id="role-display" class="form-input" style="background: var(--clr-bg-soft);"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Poste</label>
+              <div id="poste-display" class="form-input" style="background: var(--clr-bg-soft);"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Statut</label>
+              <div id="status-display"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dernier accès</label>
+              <div id="last-login-display" class="form-input" style="background: var(--clr-bg-soft);"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Membre depuis</label>
+              <div id="created-at-display" class="form-input" style="background: var(--clr-bg-soft);"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Changer le mot de passe</h3>
+          </div>
+          <form id="password-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nouveau mot de passe</label>
+                <input type="password" id="new-password" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Confirmer le mot de passe</label>
+                <input type="password" id="confirm-password" class="form-input">
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="changePassword()">Changer le mot de passe</button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let userId = null;
+    let isEditMode = false;
+    let originalProfile = {};
+
+    async function loadUserProfile() {
+      const params = new URLSearchParams(window.location.search);
+      userId = params.get('id') || window.currentUser?.id;
+
+      try {
+        const { data: user } = await db
+          .from('erp_users')
+          .select('*, erp_postes(*)')
+          .eq('id', userId)
+          .single();
+
+        if (!user) {
+          alert('Utilisateur non trouvé');
+          window.location.href = '/modules/users/liste.html';
+          return;
+        }
+
+        originalProfile = { ...user };
+
+        document.getElementById('first-name').value = user.first_name || '';
+        document.getElementById('last-name').value = user.last_name || '';
+        document.getElementById('email').value = user.email || '';
+        document.getElementById('phone').value = user.phone || '';
+
+        document.getElementById('role-display').textContent = formatRole(user.role);
+        document.getElementById('poste-display').textContent = user.erp_postes?.name || '-';
+        document.getElementById('last-login-display').textContent = user.last_login ? formatDate(user.last_login) : 'Jamais';
+        document.getElementById('created-at-display').textContent = formatDate(user.created_at);
+
+        document.getElementById('status-display').innerHTML = `
+          <span class="status-badge ${user.is_active ? 'active' : 'inactive'}">
+            ${user.is_active ? 'Actif' : 'Inactif'}
+          </span>
+        `;
+
+        const isOwnProfile = userId === window.currentUser?.id;
+        if (!isOwnProfile && window.currentUser?.role !== 'pdg') {
+          document.getElementById('edit-profile-btn').classList.add('hidden');
+          document.getElementById('password-form').parentElement.classList.add('hidden');
+        }
+
+      } catch (error) {
+        console.error('Load profile error:', error);
+        alert('Erreur lors du chargement du profil');
+      }
+    }
+
+    function toggleEditMode() {
+      isEditMode = !isEditMode;
+      
+      const inputs = ['first-name', 'last-name', 'phone'];
+      inputs.forEach(id => {
+        document.getElementById(id).disabled = !isEditMode;
+      });
+
+      const saveButtons = document.getElementById('save-buttons');
+      saveButtons.classList.toggle('hidden', !isEditMode);
+
+      if (!isEditMode) {
+        document.getElementById('first-name').value = originalProfile.first_name || '';
+        document.getElementById('last-name').value = originalProfile.last_name || '';
+        document.getElementById('phone').value = originalProfile.phone || '';
+      }
+    }
+
+    async function saveProfile() {
+      const firstName = document.getElementById('first-name').value;
+      const lastName = document.getElementById('last-name').value;
+      const phone = document.getElementById('phone').value;
+
+      try {
+        await db.from('erp_users').update({
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone
+        }).eq('id', userId);
+
+        originalProfile.first_name = firstName;
+        originalProfile.last_name = lastName;
+        originalProfile.phone = phone;
+
+        toggleEditMode();
+        alert('Profil mis à jour avec succès');
+        
+        logActivity('Modification profil', 'Users', `Profil ${userId} modifié`);
+
+      } catch (error) {
+        console.error('Save profile error:', error);
+        alert('Erreur lors de la mise à jour');
+      }
+    }
+
+    async function changePassword() {
+      const newPassword = document.getElementById('new-password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+
+      if (!newPassword || newPassword.length < 6) {
+        alert('Le mot de passe doit contenir au moins 6 caractères');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        alert('Les mots de passe ne correspondent pas');
+        return;
+      }
+
+      try {
+        const { error } = await db.auth.updateUser({
+          password: newPassword
+        });
+
+        if (error) throw error;
+
+        document.getElementById('password-form').reset();
+        alert('Mot de passe changé avec succès');
+
+        logActivity('Changement mot de passe', 'Users', `Mot de passe changé pour ${userId}`);
+
+      } catch (error) {
+        console.error('Change password error:', error);
+        alert('Erreur lors du changement de mot de passe');
+      }
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadUserProfile();
+      });
+    });
+  </script>
+</body>
+</html>

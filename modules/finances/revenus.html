@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revenus - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Revenus</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportRevenus()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+            <button class="btn btn-primary" onclick="openAddRevenueModal()">
+              <i data-lucide="plus"></i>
+              Ajouter un revenu
+            </button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <input type="date" id="filter-date-start" class="form-input">
+          <input type="date" id="filter-date-end" class="form-input">
+          <input type="text" id="filter-category" class="form-input" placeholder="Catégorie">
+          <button class="btn btn-secondary" onclick="applyFilters()">Filtrer</button>
+          <button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser</button>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="revenues-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Catégorie</th>
+                  <th>Client</th>
+                  <th>Montant</th>
+                  <th>Devise</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="revenues-table-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding: var(--space-4); border-top: 1px solid var(--clr-border); display: flex; justify-content: space-between; align-items: center;">
+            <span class="font-semibold">Total:</span>
+            <span class="font-bold text-lg text-success" id="total-revenues">0 HTG</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Revenue Modal -->
+  <div id="add-revenue-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter un revenu</h3>
+        <button class="modal-close" onclick="closeAddRevenueModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="add-revenue-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" name="date_transaction" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" name="description" class="form-input" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Catégorie</label>
+            <input type="text" name="categorie" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Montant</label>
+            <input type="number" name="montant" class="form-input" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Devise</label>
+            <select name="devise" class="form-select form-input">
+              <option value="HTG">HTG</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Client</label>
+            <select name="client_id" class="form-select form-input" id="client-select">
+              <option value="">Sélectionner un client</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-input form-textarea"></textarea>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddRevenueModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="submitAddRevenue()">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allRevenues = [];
+    let allClients = [];
+
+    async function loadClients() {
+      try {
+        const { data: clients } = await db.from('erp_clients').select('*').eq('is_active', true).order('nom');
+        allClients = clients || [];
+        
+        const select = document.getElementById('client-select');
+        select.innerHTML = '<option value="">Sélectionner un client</option>';
+        allClients.forEach(c => {
+          select.innerHTML += `<option value="${c.id}">${c.nom} ${c.prenom || ''}</option>`;
+        });
+      } catch (error) {
+        console.error('Load clients error:', error);
+      }
+    }
+
+    async function loadRevenues() {
+      try {
+        const { data: revenues } = await db
+          .from('erp_revenus')
+          .select('*, erp_clients(nom, prenom)')
+          .order('date_transaction', { ascending: false });
+        
+        allRevenues = revenues || [];
+        renderRevenuesTable(allRevenues);
+        updateTotal(allRevenues);
+      } catch (error) {
+        console.error('Load revenues error:', error);
+      }
+    }
+
+    function renderRevenuesTable(revenues) {
+      const tbody = document.getElementById('revenues-table-body');
+      
+      if (!revenues.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucun revenu</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = revenues.map(revenue => `
+        <tr>
+          <td>${formatDate(revenue.date_transaction)}</td>
+          <td>${revenue.description}</td>
+          <td>${revenue.categorie || '-'}</td>
+          <td>${revenue.erp_clients ? revenue.erp_clients.nom + ' ' + (revenue.erp_clients.prenom || '') : '-'}</td>
+          <td class="text-success font-semibold">${formatCurrency(revenue.montant, revenue.devise)}</td>
+          <td>${revenue.devise}</td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-btn danger" onclick="deleteRevenue('${revenue.id}')">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    function updateTotal(revenues) {
+      const total = revenues.reduce((sum, r) => sum + parseFloat(r.montant), 0);
+      document.getElementById('total-revenues').textContent = formatCurrency(total, 'HTG');
+    }
+
+    function openAddRevenueModal() {
+      document.getElementById('add-revenue-modal').classList.remove('hidden');
+      document.querySelector('#add-revenue-form input[name="date_transaction"]').valueAsDate = new Date();
+    }
+
+    function closeAddRevenueModal() {
+      document.getElementById('add-revenue-modal').classList.add('hidden');
+      document.getElementById('add-revenue-form').reset();
+    }
+
+    async function submitAddRevenue() {
+      const form = document.getElementById('add-revenue-form');
+      const formData = new FormData(form);
+      
+      const revenueData = {
+        date_transaction: formData.get('date_transaction'),
+        description: formData.get('description'),
+        categorie: formData.get('categorie'),
+        montant: parseFloat(formData.get('montant')),
+        devise: formData.get('devise'),
+        client_id: formData.get('client_id') || null,
+        notes: formData.get('notes'),
+        created_by: window.currentUser?.id
+      };
+
+      try {
+        await db.from('erp_revenus').insert(revenueData);
+        closeAddRevenueModal();
+        await loadRevenues();
+        logActivity('Ajout revenu', 'Finances', `Revenu de ${revenueData.montant} ${revenueData.devise}`);
+      } catch (error) {
+        console.error('Add revenue error:', error);
+        alert('Erreur lors de l\'ajout');
+      }
+    }
+
+    async function deleteRevenue(revenueId) {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer ce revenu ?')) return;
+      
+      try {
+        await db.from('erp_revenus').delete().eq('id', revenueId);
+        await loadRevenues();
+        logActivity('Suppression revenu', 'Finances', `Revenu ${revenueId} supprimé`);
+      } catch (error) {
+        console.error('Delete revenue error:', error);
+        alert('Erreur lors de la suppression');
+      }
+    }
+
+    function applyFilters() {
+      const dateStart = document.getElementById('filter-date-start').value;
+      const dateEnd = document.getElementById('filter-date-end').value;
+      const category = document.getElementById('filter-category').value.toLowerCase();
+
+      let filtered = allRevenues;
+
+      if (dateStart) {
+        filtered = filtered.filter(r => r.date_transaction >= dateStart);
+      }
+
+      if (dateEnd) {
+        filtered = filtered.filter(r => r.date_transaction <= dateEnd);
+      }
+
+      if (category) {
+        filtered = filtered.filter(r => r.categorie?.toLowerCase().includes(category));
+      }
+
+      renderRevenuesTable(filtered);
+      updateTotal(filtered);
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-date-start').value = '';
+      document.getElementById('filter-date-end').value = '';
+      document.getElementById('filter-category').value = '';
+      renderRevenuesTable(allRevenues);
+      updateTotal(allRevenues);
+    }
+
+    function exportRevenus() {
+      const data = allRevenues.map(r => ({
+        Date: formatDate(r.date_transaction),
+        Description: r.description,
+        Catégorie: r.categorie || '',
+        Client: r.erp_clients ? r.erp_clients.nom + ' ' + (r.erp_clients.prenom || '') : '',
+        Montant: r.montant,
+        Devise: r.devise,
+        Notes: r.notes || ''
+      }));
+      
+      exportWithConfig(data, 'revenues');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    function formatCurrency(amount, devise = 'HTG') {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: devise }).format(amount);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadClients();
+        loadRevenues();
+      });
+    });
+  </script>
+</body>
+</html>

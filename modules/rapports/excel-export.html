@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Export Excel - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Export Excel</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Sélectionner les données à exporter</h3>
+          </div>
+          <div style="padding: var(--space-6);">
+            <div class="form-group">
+              <label class="form-label">Module</label>
+              <select id="export-module" class="form-select form-input">
+                <option value="">Sélectionner un module</option>
+                <option value="users">Utilisateurs</option>
+                <option value="clients">Clients</option>
+                <option value="products">Produits</option>
+                <option value="revenues">Revenus</option>
+                <option value="expenses">Dépenses</option>
+                <option value="tasks">Tâches</option>
+                <option value="presences">Présences</option>
+                <option value="all">Tout (multi-feuilles)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date de début (optionnel)</label>
+              <input type="date" id="date-start" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date de fin (optionnel)</label>
+              <input type="date" id="date-end" class="form-input">
+            </div>
+            <button class="btn btn-primary" onclick="exportData()">Exporter</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Exports rapides</h3>
+          </div>
+          <div style="padding: var(--space-6);">
+            <div class="grid-3">
+              <button class="btn btn-secondary" onclick="quickExport('users')">
+                <i data-lucide="users"></i>
+                Utilisateurs
+              </button>
+              <button class="btn btn-secondary" onclick="quickExport('clients')">
+                <i data-lucide="user"></i>
+                Clients
+              </button>
+              <button class="btn btn-secondary" onclick="quickExport('products')">
+                <i data-lucide="package"></i>
+                Produits
+              </button>
+              <button class="btn btn-secondary" onclick="quickExport('revenues')">
+                <i data-lucide="trending-up"></i>
+                Revenus
+              </button>
+              <button class="btn btn-secondary" onclick="quickExport('expenses')">
+                <i data-lucide="trending-down"></i>
+                Dépenses
+              </button>
+              <button class="btn btn-secondary" onclick="quickExport('tasks')">
+                <i data-lucide="check-square"></i>
+                Tâches
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function exportData() {
+      const module = document.getElementById('export-module').value;
+      const dateStart = document.getElementById('date-start').value;
+      const dateEnd = document.getElementById('date-end').value;
+
+      if (!module) {
+        alert('Veuillez sélectionner un module');
+        return;
+      }
+
+      try {
+        if (module === 'all') {
+          await exportAllData(dateStart, dateEnd);
+        } else {
+          await exportModule(module, dateStart, dateEnd);
+        }
+      } catch (error) {
+        console.error('Export error:', error);
+        alert('Erreur lors de l\'export');
+      }
+    }
+
+    async function exportAllData(dateStart, dateEnd) {
+      const filters = {};
+      if (dateStart) filters.gte = dateStart;
+      if (dateEnd) filters.lte = dateEnd;
+
+      const [users, clients, products, revenues, expenses, tasks] = await Promise.all([
+        db.from('erp_users').select('*').eq('is_active', true),
+        db.from('erp_clients').select('*').eq('is_active', true),
+        db.from('erp_produits').select('*').eq('is_active', true),
+        dateStart || dateEnd ? db.from('erp_revenus').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd) : db.from('erp_revenus').select('*'),
+        dateStart || dateEnd ? db.from('erp_depenses').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd) : db.from('erp_depenses').select('*'),
+        db.from('erp_taches').select('*')
+      ]);
+
+      const sheets = {
+        'Utilisateurs': formatUsersForExcel(users.data || []),
+        'Clients': formatClientsForExcel(clients.data || []),
+        'Produits': formatProductsForExcel(products.data || []),
+        'Revenus': formatRevenuesForExcel(revenues.data || []),
+        'Dépenses': formatExpensesForExcel(expenses.data || []),
+        'Tâches': formatTasksForExcel(tasks.data || [])
+      };
+
+      exportMultiSheet(sheets, 'export-complet');
+    }
+
+    async function exportModule(module, dateStart, dateEnd) {
+      let query = null;
+      let formatter = null;
+
+      switch (module) {
+        case 'users':
+          query = db.from('erp_users').select('*').eq('is_active', true);
+          formatter = formatUsersForExcel;
+          break;
+        case 'clients':
+          query = db.from('erp_clients').select('*').eq('is_active', true);
+          formatter = formatClientsForExcel;
+          break;
+        case 'products':
+          query = db.from('erp_produits').select('*').eq('is_active', true);
+          formatter = formatProductsForExcel;
+          break;
+        case 'revenues':
+          query = dateStart || dateEnd 
+            ? db.from('erp_revenus').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd)
+            : db.from('erp_revenus').select('*');
+          formatter = formatRevenuesForExcel;
+          break;
+        case 'expenses':
+          query = dateStart || dateEnd
+            ? db.from('erp_depenses').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd)
+            : db.from('erp_depenses').select('*');
+          formatter = formatExpensesForExcel;
+          break;
+        case 'tasks':
+          query = db.from('erp_taches').select('*');
+          formatter = formatTasksForExcel;
+          break;
+        case 'presences':
+          query = db.from('erp_presences').select('*');
+          formatter = formatPresencesForExcel;
+          break;
+      }
+
+      const { data } = await query;
+      const formattedData = formatter(data || []);
+      exportWithConfig(formattedData, module);
+    }
+
+    async function quickExport(module) {
+      await exportModule(module, null, null);
+    }
+
+    function formatUsersForExcel(users) {
+      return users.map(u => ({
+        Prénom: u.first_name,
+        Nom: u.last_name,
+        Email: u.email,
+        Téléphone: u.phone || '',
+        Rôle: formatRole(u.role),
+        Statut: u.is_active ? 'Actif' : 'Inactif',
+        'Dernier accès': u.last_login ? formatDate(u.last_login) : 'Jamais'
+      }));
+    }
+
+    function formatClientsForExcel(clients) {
+      return clients.map(c => ({
+        Nom: c.nom,
+        Prénom: c.prenom || '',
+        Entreprise: c.company || '',
+        Type: c.type === 'entreprise' ? 'Entreprise' : 'Particulier',
+        Email: c.email || '',
+        Téléphone: c.phone || '',
+        Adresse: c.address || ''
+      }));
+    }
+
+    function formatProductsForExcel(products) {
+      return products.map(p => ({
+        Code: p.code || '',
+        Désignation: p.designation,
+        Catégorie: p.categorie || '',
+        Quantité: p.quantite,
+        'Quantité min': p.quantite_min,
+        'Prix achat': p.prix_achat,
+        'Prix vente': p.prix_vente,
+        Unité: p.unite,
+        Fournisseur: p.fournisseur || ''
+      }));
+    }
+
+    function formatRevenuesForExcel(revenues) {
+      return revenues.map(r => ({
+        Date: formatDate(r.date_transaction),
+        Description: r.description,
+        Catégorie: r.categorie || '',
+        Montant: r.montant,
+        Devise: r.devise,
+        Client: r.client_id || '',
+        Notes: r.notes || ''
+      }));
+    }
+
+    function formatExpensesForExcel(expenses) {
+      return expenses.map(e => ({
+        Date: formatDate(e.date_transaction),
+        Description: e.description,
+        Catégorie: e.categorie || '',
+        Montant: e.montant,
+        Devise: e.devise,
+        Notes: e.notes || ''
+      }));
+    }
+
+    function formatTasksForExcel(tasks) {
+      return tasks.map(t => ({
+        Titre: t.titre,
+        Description: t.description || '',
+        Assigné: t.assigne_a || '',
+        'Assigné par': t.assigne_par || '',
+        Priorité: t.priorite,
+        Statut: t.statut.replace('_', ' '),
+        Échéance: t.echeance ? formatDate(t.echeance) : '',
+        Module: t.module_tag || ''
+      }));
+    }
+
+    function formatPresencesForExcel(presences) {
+      return presences.map(p => ({
+        'Employé ID': p.employe_id,
+        Date: formatDate(p.date_presence),
+        'Heure arrivée': p.heure_arrivee || '',
+        'Heure départ': p.heure_depart || '',
+        Statut: p.statut,
+        Notes: p.notes || ''
+      }));
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp();
+    });
+  </script>
+</body>
+</html>

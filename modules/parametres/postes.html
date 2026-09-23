@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Postes - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Postes</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="openAddPostModal()">
+              <i data-lucide="plus"></i>
+              Ajouter un poste
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="postes-table">
+              <thead>
+                <tr>
+                  <th>Nom du poste</th>
+                  <th>Département</th>
+                  <th>Permissions</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="postes-table-body">
+                <tr>
+                  <td colspan="4" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Post Modal -->
+  <div id="add-post-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter un poste</h3>
+        <button class="modal-close" onclick="closeAddPostModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="add-post-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nom du poste</label>
+          <input type="text" name="name" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Département</label>
+          <input type="text" name="department" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-input form-textarea"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Permissions (séparer par virgule)</label>
+          <input type="text" name="permissions" class="form-input" placeholder="users.view, stock.edit, finances.view...">
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddPostModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="submitAddPost()">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allPostes = [];
+
+    async function loadPostes() {
+      try {
+        const { data: postes } = await db.from('erp_postes').select('*').eq('is_active', true).order('name');
+        allPostes = postes || [];
+        renderPostesTable(allPostes);
+      } catch (error) {
+        console.error('Load postes error:', error);
+      }
+    }
+
+    function renderPostesTable(postes) {
+      const tbody = document.getElementById('postes-table-body');
+      
+      if (!postes.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Aucun poste</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = postes.map(post => `
+        <tr>
+          <td>${post.name}</td>
+          <td>${post.department || '-'}</td>
+          <td>
+            <div class="permissions-list">
+              ${post.permissions ? post.permissions.split(',').map(p => `<span class="badge badge-secondary">${p.trim()}</span>`).join(' ') : '-'}
+            </div>
+          </td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-btn danger" onclick="deletePost('${post.id}')">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    function openAddPostModal() {
+      document.getElementById('add-post-modal').classList.remove('hidden');
+    }
+
+    function closeAddPostModal() {
+      document.getElementById('add-post-modal').classList.add('hidden');
+      document.getElementById('add-post-form').reset();
+    }
+
+    async function submitAddPost() {
+      const form = document.getElementById('add-post-form');
+      const formData = new FormData(form);
+      
+      const postData = {
+        name: formData.get('name'),
+        department: formData.get('department'),
+        description: formData.get('description'),
+        permissions: formData.get('permissions')
+      };
+
+      try {
+        await db.from('erp_postes').insert(postData);
+        closeAddPostModal();
+        await loadPostes();
+        logActivity('Création poste', 'Paramètres', `Poste ${postData.name} créé`);
+      } catch (error) {
+        console.error('Add post error:', error);
+        alert('Erreur lors de l\'ajout');
+      }
+    }
+
+    async function deletePost(postId) {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer ce poste ?')) return;
+      
+      try {
+        await db.from('erp_postes').update({ is_active: false }).eq('id', postId);
+        await loadPostes();
+        logActivity('Suppression poste', 'Paramètres', `Poste ${postId} supprimé`);
+      } catch (error) {
+        console.error('Delete post error:', error);
+        alert('Erreur lors de la suppression');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadPostes();
+      });
+    });
+  </script>
+</body>
+</html>

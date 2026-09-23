@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fiche Client - ERP Entreprise</title>
+  <link rel="stylesheet" href="../../../../assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/main.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/components.css?v=6">
+  <link rel="stylesheet" href="../../../../assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../../../assets/js/supabase.js?v=7"></script>
+  <script src="../../../../assets/js/auth.js?v=7"></script>
+  <script src="../../../../assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../../../assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Fiche Client</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <button class="btn btn-secondary" onclick="window.location.href='/modules/clients/liste.html'">
+            <i data-lucide="arrow-left"></i>
+            Retour
+          </button>
+        </div>
+
+        <div class="dashboard-grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Informations client</h3>
+              <button class="btn btn-ghost btn-sm" onclick="openEditModal()">
+                <i data-lucide="edit"></i>
+              </button>
+            </div>
+            <div id="client-info">
+              <div class="loading">
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Statistiques</h3>
+            </div>
+            <div id="client-stats">
+              <div class="loading">
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Historique des interactions</h3>
+            <button class="btn btn-primary btn-sm" onclick="openInteractionModal()">
+              <i data-lucide="plus"></i>
+              Ajouter
+            </button>
+          </div>
+          <div id="interactions-list" class="loading">
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Edit Client Modal -->
+  <div id="edit-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Modifier le client</h3>
+        <button class="modal-close" onclick="closeEditModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="edit-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nom</label>
+          <input type="text" name="nom" class="form-input" id="edit-nom" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prénom</label>
+          <input type="text" name="prenom" class="form-input" id="edit-prenom">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-input" id="edit-email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Téléphone</label>
+          <input type="tel" name="phone" class="form-input" id="edit-phone">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Adresse</label>
+          <input type="text" name="address" class="form-input" id="edit-address">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-input form-textarea" id="edit-notes"></textarea>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEditModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveEdit()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Interaction Modal -->
+  <div id="interaction-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Nouvelle interaction</h3>
+        <button class="modal-close" onclick="closeInteractionModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="interaction-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select name="type" class="form-select form-input">
+            <option value="appel">Appel</option>
+            <option value="email">Email</option>
+            <option value="reunion">Réunion</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-input form-textarea" required></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prochaine action</label>
+          <input type="text" name="next_action" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date de la prochaine action</label>
+          <input type="date" name="next_action_date" class="form-input">
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeInteractionModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveInteraction()">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let clientId = null;
+    let currentClient = null;
+
+    async function loadClient() {
+      const params = new URLSearchParams(window.location.search);
+      clientId = params.get('id');
+
+      if (!clientId) {
+        window.location.href = '/modules/clients/liste.html';
+        return;
+      }
+
+      try {
+        const { data: client } = await db.from('erp_clients').select('*').eq('id', clientId).single();
+        
+        if (!client) {
+          alert('Client non trouvé');
+          window.location.href = '/modules/clients/liste.html';
+          return;
+        }
+
+        currentClient = client;
+        renderClientInfo(client);
+        await loadStats(client.id);
+        await loadInteractions(client.id);
+        
+      } catch (error) {
+        console.error('Load client error:', error);
+      }
+    }
+
+    function renderClientInfo(client) {
+      const container = document.getElementById('client-info');
+      
+      container.innerHTML = `
+        <div class="form-group">
+          <label class="form-label">Nom</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.nom}</div>
+        </div>
+        ${client.prenom ? `
+        <div class="form-group">
+          <label class="form-label">Prénom</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.prenom}</div>
+        </div>
+        ` : ''}
+        ${client.company ? `
+        <div class="form-group">
+          <label class="form-label">Entreprise</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.company}</div>
+        </div>
+        ` : ''}
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.type === 'entreprise' ? 'Entreprise' : 'Particulier'}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.email || '-'}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Téléphone</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.phone || '-'}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Adresse</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.address || '-'}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <div class="form-input" style="background: var(--clr-bg-soft);">${client.notes || '-'}</div>
+        </div>
+      `;
+    }
+
+    async function loadStats(clientId) {
+      try {
+        const { count: revenueCount } = await db.from('erp_revenus').select('*', { count: 'exact', head: true }).eq('client_id', clientId);
+        const totalRevenue = await db.from('erp_revenus').select('montant').eq('client_id', clientId);
+        const sum = totalRevenue.data?.reduce((s, r) => s + parseFloat(r.montant), 0) || 0;
+        
+        const container = document.getElementById('client-stats');
+        container.innerHTML = `
+          <div class="kpi-grid-2">
+            <div class="kpi-card">
+              <div class="kpi-icon primary">
+                <i data-lucide="file-text"></i>
+              </div>
+              <div class="kpi-content">
+                <div class="kpi-label">Transactions</div>
+                <div class="kpi-value">${revenueCount || 0}</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon success">
+                <i data-lucide="dollar-sign"></i>
+              </div>
+              <div class="kpi-content">
+                <div class="kpi-label">Total achats</div>
+                <div class="kpi-value">${formatCurrency(sum)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        lucide.createIcons();
+      } catch (error) {
+        console.error('Load stats error:', error);
+      }
+    }
+
+    async function loadInteractions(clientId) {
+      try {
+        const { data: interactions } = await db
+          .from('erp_client_suivi')
+          .select('*')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false });
+        
+        const container = document.getElementById('interactions-list');
+        
+        if (!interactions?.length) {
+          container.innerHTML = '<div class="empty-state"><p class="text-muted">Aucune interaction</p></div>';
+          return;
+        }
+
+        container.innerHTML = interactions.map(i => `
+          <div style="padding: var(--space-3); border-bottom: 1px solid var(--clr-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="badge badge-secondary">${i.type}</span>
+              <span class="text-muted text-sm">${formatDate(i.created_at)}</span>
+            </div>
+            <div style="margin-top: var(--space-2);">${i.notes}</div>
+            ${i.next_action ? `<div style="margin-top: var(--space-2); font-size: var(--font-size-sm); color: var(--clr-text-muted);">Prochaine action: ${i.next_action} ${i.next_action_date ? '(' + formatDate(i.next_action_date) + ')' : ''}</div>` : ''}
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Load interactions error:', error);
+      }
+    }
+
+    function openEditModal() {
+      document.getElementById('edit-modal').classList.remove('hidden');
+      document.getElementById('edit-nom').value = currentClient.nom;
+      document.getElementById('edit-prenom').value = currentClient.prenom || '';
+      document.getElementById('edit-email').value = currentClient.email || '';
+      document.getElementById('edit-phone').value = currentClient.phone || '';
+      document.getElementById('edit-address').value = currentClient.address || '';
+      document.getElementById('edit-notes').value = currentClient.notes || '';
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.add('hidden');
+    }
+
+    async function saveEdit() {
+      const form = document.getElementById('edit-form');
+      const formData = new FormData(form);
+      
+      try {
+        await db.from('erp_clients').update({
+          nom: formData.get('nom'),
+          prenom: formData.get('prenom'),
+          email: formData.get('email'),
+          phone: formData.get('phone'),
+          address: formData.get('address'),
+          notes: formData.get('notes')
+        }).eq('id', clientId);
+        
+        closeEditModal();
+        await loadClient();
+        logActivity('Modification client', 'Clients', `Client ${clientId} modifié`);
+      } catch (error) {
+        console.error('Save edit error:', error);
+        alert('Erreur lors de la modification');
+      }
+    }
+
+    function openInteractionModal() {
+      document.getElementById('interaction-modal').classList.remove('hidden');
+    }
+
+    function closeInteractionModal() {
+      document.getElementById('interaction-modal').classList.add('hidden');
+      document.getElementById('interaction-form').reset();
+    }
+
+    async function saveInteraction() {
+      const form = document.getElementById('interaction-form');
+      const formData = new FormData(form);
+      
+      const interactionData = {
+        client_id: clientId,
+        type: formData.get('type'),
+        notes: formData.get('notes'),
+        next_action: formData.get('next_action'),
+        next_action_date: formData.get('next_action_date') || null,
+        created_by: window.currentUser?.id
+      };
+
+      try {
+        await db.from('erp_client_suivi').insert(interactionData);
+        closeInteractionModal();
+        await loadInteractions(clientId);
+        logActivity('Ajout interaction', 'Clients', `Interaction ajoutée pour client ${clientId}`);
+      } catch (error) {
+        console.error('Save interaction error:', error);
+        alert('Erreur lors de l\'ajout');
+      }
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(amount);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadClient();
+      });
+    });
+  </script>
+</body>
+</html>

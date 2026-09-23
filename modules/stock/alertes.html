@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alertes Stock - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Alertes Stock</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportAlerts()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="margin-bottom: var(--space-6);">
+          <div class="kpi-card">
+            <div class="kpi-icon warning">
+              <i data-lucide="alert-triangle"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Stock faible</div>
+              <div class="kpi-value" id="low-stock-count">0</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon danger">
+              <i data-lucide="x-circle"></i>
+            </div>
+            <div class="kpi-content">
+              <div class="kpi-label">Rupture de stock</div>
+              <div class="kpi-value" id="out-of-stock-count">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="alerts-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Désignation</th>
+                  <th>Catégorie</th>
+                  <th>Qté actuelle</th>
+                  <th>Qté minimum</th>
+                  <th>Manque</th>
+                  <th>Fournisseur</th>
+                  <th>Statut</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="alerts-table-body">
+                <tr>
+                  <td colspan="9" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allAlerts = [];
+
+    async function loadAlerts() {
+      try {
+        const { data: products } = await db
+          .from('erp_produits')
+          .select('*')
+          .eq('is_active', true)
+          .lte('quantite', db.raw('quantite_min'))
+          .order('quantite', { ascending: true });
+        
+        allAlerts = products || [];
+        renderAlertsTable(allAlerts);
+        
+        const lowStock = allAlerts.filter(p => p.quantite > 0).length;
+        const outOfStock = allAlerts.filter(p => p.quantite === 0).length;
+        
+        document.getElementById('low-stock-count').textContent = lowStock;
+        document.getElementById('out-of-stock-count').textContent = outOfStock;
+      } catch (error) {
+        console.error('Load alerts error:', error);
+      }
+    }
+
+    function renderAlertsTable(products) {
+      const tbody = document.getElementById('alerts-table-body');
+      
+      if (!products.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Aucune alerte</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = products.map(product => {
+        const shortage = product.quantite_min - product.quantite;
+        const status = product.quantite === 0 ? { label: 'Rupture', class: 'danger' } : { label: 'Stock faible', class: 'warning' };
+        
+        return `
+          <tr>
+            <td>${product.code || '-'}</td>
+            <td>${product.designation}</td>
+            <td>${product.categorie || '-'}</td>
+            <td>${product.quantite}</td>
+            <td>${product.quantite_min}</td>
+            <td class="text-danger">${shortage}</td>
+            <td>${product.fournisseur || '-'}</td>
+            <td><span class="badge badge-${status.class}">${status.label}</span></td>
+            <td>
+              <button class="btn btn-primary btn-sm" onclick="createPurchaseOrder('${product.id}')">
+                <i data-lucide="shopping-cart"></i>
+                Commander
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      lucide.createIcons();
+    }
+
+    function createPurchaseOrder(productId) {
+      const product = allAlerts.find(p => p.id === productId);
+      if (!product) return;
+      
+      alert(`Demande de commande créée pour: ${product.designation}\nQuantité suggérée: ${product.quantite_min - product.quantite + (product.quantite_min || 10)}`);
+      logActivity('Commande créée', 'Stock', `Commande pour ${product.designation}`);
+    }
+
+    function exportAlerts() {
+      const data = allAlerts.map(p => ({
+        Code: p.code || '',
+        Désignation: p.designation,
+        Catégorie: p.categorie || '',
+        'Qté actuelle': p.quantite,
+        'Qté minimum': p.quantite_min,
+        Manque: p.quantite_min - p.quantite,
+        Fournisseur: p.fournisseur || '',
+        Statut: p.quantite === 0 ? 'Rupture' : 'Stock faible'
+      }));
+      
+      exportToExcel(data, 'alertes-stock', 'Alertes');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadAlerts();
+      });
+    });
+  </script>
+</body>
+</html>

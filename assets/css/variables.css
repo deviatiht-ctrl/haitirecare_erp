@@ -1,0 +1,106 @@
+/* Design Tokens - CSS Variables */
+:root {
+  /* Colors - Modern Palette */
+  --clr-bg: #FFFFFF;
+  --clr-bg-soft: #F8FAFC;
+  --clr-bg-sidebar: #0F172A;
+  --clr-sidebar-active: #1E293B;
+  --clr-sidebar-text: #94A3B8;
+  --clr-sidebar-text-active: #FFFFFF;
+  --clr-primary: #6366F1;
+  --clr-primary-dark: #4F46E5;
+  --clr-primary-light: #EEF2FF;
+  --clr-success: #10B981;
+  --clr-success-dark: #059669;
+  --clr-success-light: #D1FAE5;
+  --clr-warning: #F59E0B;
+  --clr-warning-dark: #D97706;
+  --clr-warning-light: #FEF3C7;
+  --clr-danger: #EF4444;
+  --clr-danger-dark: #DC2626;
+  --clr-danger-light: #FEE2E2;
+  --clr-text: #0F172A;
+  --clr-text-secondary: #475569;
+  --clr-text-muted: #94A3B8;
+  --clr-border: #E2E8F0;
+  --clr-card: #FFFFFF;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Typography */
+  --font-family: 'Inter', sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Spacing (4px base grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Border Radius - More Modern */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+  --content-padding: 24px;
+
+  /* Transitions - Smoother */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Theme Sombre — active par [data-theme="dark"] sur <html>
+   (applique par assets/js/auth.js, persiste dans localStorage 'erp-theme') */
+[data-theme="dark"] {
+  --clr-bg: #0B1120;
+  --clr-bg-soft: #111A2E;
+  --clr-card: #111A2E;
+  --clr-border: #22304F;
+  --clr-text: #F1F5F9;
+  --clr-text-secondary: #CBD5E1;
+  --clr-text-muted: #7C8AA5;
+  --clr-bg-sidebar: #080D1A;
+  --clr-sidebar-active: #16213B;
+  --clr-sidebar-text: #8B9BB4;
+  --clr-sidebar-text-active: #FFFFFF;
+  --clr-primary-light: rgba(99, 102, 241, 0.16);
+  --clr-success-light: rgba(16, 185, 129, 0.16);
+  --clr-warning-light: rgba(245, 158, 11, 0.16);
+  --clr-danger-light: rgba(239, 68, 68, 0.16);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.55), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+/* Icones du bouton de theme (sun en mode sombre, moon en mode clair) */
+[data-theme="light"] .theme-icon-sun,
+[data-theme="dark"] .theme-icon-moon {
+  display: none;
+}

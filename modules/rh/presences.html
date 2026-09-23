@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Présences - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Présences</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportPresences()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+            <button class="btn btn-primary" onclick="markAllPresent()">
+              <i data-lucide="check-circle"></i>
+              Marquer tous présents
+            </button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <input type="date" id="filter-date" class="form-input">
+          <button class="btn btn-secondary" onclick="applyDateFilter()">Filtrer</button>
+          <button class="btn btn-ghost" onclick="setToday()">Aujourd'hui</button>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="presences-table">
+              <thead>
+                <tr>
+                  <th>Employé</th>
+                  <th>Date</th>
+                  <th>Heure arrivée</th>
+                  <th>Heure départ</th>
+                  <th>Statut</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="presences-table-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allPresences = [];
+    let allEmployees = [];
+
+    async function loadEmployees() {
+      try {
+        const { data: employees } = await db.from('erp_users').select('*').eq('is_active', true).order('last_name');
+        allEmployees = employees || [];
+      } catch (error) {
+        console.error('Load employees error:', error);
+      }
+    }
+
+    async function loadPresences(date = null) {
+      const filterDate = date || new Date().toISOString().split('T')[0];
+      
+      try {
+        const { data: presences } = await db
+          .from('erp_presences')
+          .select('*, erp_users(first_name, last_name)')
+          .eq('date_presence', filterDate)
+          .order('heure_arrivee', { ascending: false });
+        
+        allPresences = presences || [];
+        renderPresencesTable(allPresences);
+      } catch (error) {
+        console.error('Load presences error:', error);
+      }
+    }
+
+    function renderPresencesTable(presences) {
+      const tbody = document.getElementById('presences-table-body');
+      
+      if (!presences.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucune présence enregistrée</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = presences.map(p => `
+        <tr>
+          <td>${p.erp_users?.first_name} ${p.erp_users?.last_name || ''}</td>
+          <td>${formatDate(p.date_presence)}</td>
+          <td>${p.heure_arrivee || '-'}</td>
+          <td>${p.heure_depart || '-'}</td>
+          <td>
+            <span class="status-badge ${p.statut === 'present' ? 'active' : p.statut === 'absent' ? 'error' : 'pending'}">
+              ${p.statut}
+            </span>
+          </td>
+          <td>${p.notes || '-'}</td>
+          <td>
+            <div class="table-actions">
+              <button class="table-action-btn" onclick="editPresence('${p.id}')">
+                <i data-lucide="edit"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    async function markAllPresent() {
+      const date = document.getElementById('filter-date').value || new Date().toISOString().split('T')[0];
+      
+      if (!confirm(`Marquer tous les employés présents pour le ${formatDate(date)} ?`)) return;
+      
+      try {
+        for (const emp of allEmployees) {
+          await db.from('erp_presences').upsert({
+            employe_id: emp.id,
+            date_presence: date,
+            statut: 'present',
+            heure_arrivee: new Date().toTimeString().split(' ')[0],
+            created_by: window.currentUser?.id
+          }, { onConflict: 'employe_id,date_presence' });
+        }
+        
+        await loadPresences(date);
+        logActivity('Marquer présences', 'RH', `Tous les employés marqués présents le ${date}`);
+      } catch (error) {
+        console.error('Mark all present error:', error);
+        alert('Erreur lors de la mise à jour');
+      }
+    }
+
+    function applyDateFilter() {
+      const date = document.getElementById('filter-date').value;
+      if (date) {
+        loadPresences(date);
+      }
+    }
+
+    function setToday() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('filter-date').value = today;
+      loadPresences(today);
+    }
+
+    function editPresence(presenceId) {
+      const newStatus = prompt('Nouveau statut (present/absent/retard/conge/ferie):');
+      if (newStatus && ['present', 'absent', 'retard', 'conge', 'ferie'].includes(newStatus)) {
+        db.from('erp_presences').update({ statut: newStatus }).eq('id', presenceId).then(() => {
+          loadPresences(document.getElementById('filter-date').value);
+        });
+      }
+    }
+
+    function exportPresences() {
+      const data = allPresences.map(p => ({
+        Employé: `${p.erp_users?.first_name} ${p.erp_users?.last_name || ''}`,
+        Date: formatDate(p.date_presence),
+        'Heure arrivée': p.heure_arrivee || '',
+        'Heure départ': p.heure_depart || '',
+        Statut: p.statut,
+        Notes: p.notes || ''
+      }));
+      
+      exportToExcel(data, 'presences', 'Présences');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.getElementById('filter-date').valueAsDate = new Date();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadEmployees();
+        loadPresences();
+      });
+    });
+  </script>
+</body>
+</html>

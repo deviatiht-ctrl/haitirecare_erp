@@ -1,0 +1,169 @@
+/* Print Styles for Reports */
+@media print {
+  /* Hide non-printable elements */
+  .sidebar,
+  .topbar,
+  .mobile-menu-btn,
+  .sidebar-overlay,
+  .btn,
+  .filters-bar,
+  .table-actions,
+  .pagination,
+  .modal-overlay,
+  .dropdown-menu {
+    display: none !important;
+  }
+
+  /* Reset layout */
+  .main-content {
+    margin-left: 0 !important;
+  }
+
+  .content-area {
+    margin-top: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Page settings */
+  body {
+    background-color: white;
+    color: black;
+    font-size: 12pt;
+  }
+
+  /* Remove borders and shadows */
+  .card,
+  .table-container,
+  .kpi-card,
+  .chart-container {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Table styles */
+  .table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .table thead {
+    background-color: #f0f0f0 !important;
+  }
+
+  .table th,
+  .table td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    color: black;
+  }
+
+  .table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  /* Hide alternating row hover effects */
+  .table tbody tr:hover {
+    background-color: inherit;
+  }
+
+  /* Badge styles */
+  .badge,
+  .status-badge {
+    border: 1px solid #ccc;
+    background-color: white;
+    color: black;
+  }
+
+  /* Ensure text is visible */
+  .text-muted,
+  .text-secondary {
+    color: #666 !important;
+  }
+
+  /* Page breaks */
+  .page-break {
+    page-break-before: always;
+  }
+
+  .no-break {
+    page-break-inside: avoid;
+  }
+
+  /* Print header */
+  .print-header {
+    display: block !important;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #000;
+  }
+
+  .print-header h1 {
+    font-size: 18pt;
+    margin-bottom: 5px;
+  }
+
+  .print-header p {
+    font-size: 10pt;
+    color: #666;
+  }
+
+  /* Print footer */
+  .print-footer {
+    display: block !important;
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #ccc;
+    font-size: 9pt;
+    text-align: center;
+    color: #666;
+  }
+
+  /* KPI cards for print */
+  .kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    border: 1px solid #ccc;
+    padding: 10px;
+  }
+
+  .kpi-value {
+    font-size: 14pt;
+  }
+
+  /* Charts - hide canvas, show summary */
+  .chart-canvas {
+    display: none;
+  }
+
+  .chart-print-summary {
+    display: block !important;
+  }
+
+  /* Links */
+  a {
+    text-decoration: none;
+    color: black;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+  }
+
+  a[href^="#"]:after {
+    content: "";
+  }
+}
+
+/* Print-specific classes (hidden on screen, visible in print) */
+.print-header,
+.print-footer,
+.chart-print-summary {
+  display: none;
+}

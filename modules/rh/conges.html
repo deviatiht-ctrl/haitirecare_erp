@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Congés - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Congés</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportConges()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-container">
+            <table class="table" id="conges-table">
+              <thead>
+                <tr>
+                  <th>Employé</th>
+                  <th>Type congé</th>
+                  <th>Date début</th>
+                  <th>Date fin</th>
+                  <th>Jours</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="conges-table-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allConges = [];
+
+    async function loadConges() {
+      try {
+        const { data: conges } = await db
+          .from('erp_conges')
+          .select('*, erp_users(first_name, last_name)')
+          .order('created_at', { ascending: false });
+        
+        allConges = conges || [];
+        renderCongesTable(allConges);
+      } catch (error) {
+        console.error('Load conges error:', error);
+      }
+    }
+
+    function renderCongesTable(conges) {
+      const tbody = document.getElementById('conges-table-body');
+      
+      if (!conges.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucune demande de congé</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = conges.map(c => `
+        <tr>
+          <td>${c.erp_users?.first_name} ${c.erp_users?.last_name || ''}</td>
+          <td>${c.type_conge || '-'}</td>
+          <td>${formatDate(c.date_debut)}</td>
+          <td>${formatDate(c.date_fin)}</td>
+          <td>${c.nb_jours || '-'}</td>
+          <td>
+            <span class="badge badge-${c.statut === 'approuve' ? 'success' : c.statut === 'refuse' ? 'danger' : 'warning'}">
+              ${c.statut.replace('_', ' ')}
+            </span>
+          </td>
+          <td>
+            <div class="table-actions">
+              ${c.statut === 'en_attente' ? `
+                <button class="table-action-btn" onclick="approveLeave('${c.id}')">
+                  <i data-lucide="check"></i>
+                </button>
+                <button class="table-action-btn danger" onclick="rejectLeave('${c.id}')">
+                  <i data-lucide="x"></i>
+                </button>
+              ` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      lucide.createIcons();
+    }
+
+    async function approveLeave(leaveId) {
+      try {
+        await db.from('erp_conges').update({ statut: 'approuve' }).eq('id', leaveId);
+        await loadConges();
+        logActivity('Approbation congé', 'RH', `Congé ${leaveId} approuvé`);
+      } catch (error) {
+        console.error('Approve leave error:', error);
+        alert('Erreur lors de l\'approbation');
+      }
+    }
+
+    async function rejectLeave(leaveId) {
+      const comment = prompt('Motif du refus:');
+      if (!comment) return;
+      
+      try {
+        await db.from('erp_conges').update({ statut: 'refuse', commentaire_rh: comment }).eq('id', leaveId);
+        await loadConges();
+        logActivity('Refus congé', 'RH', `Congé ${leaveId} refusé`);
+      } catch (error) {
+        console.error('Reject leave error:', error);
+        alert('Erreur lors du refus');
+      }
+    }
+
+    function exportConges() {
+      const data = allConges.map(c => ({
+        Employé: `${c.erp_users?.first_name} ${c.erp_users?.last_name || ''}`,
+        'Type congé': c.type_conge || '',
+        'Date début': formatDate(c.date_debut),
+        'Date fin': formatDate(c.date_fin),
+        Jours: c.nb_jours || 0,
+        Statut: c.statut.replace('_', ' '),
+        Commentaire: c.commentaire_rh || ''
+      }));
+      
+      exportToExcel(data, 'conges', 'Congés');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadConges();
+      });
+    });
+  </script>
+</body>
+</html>

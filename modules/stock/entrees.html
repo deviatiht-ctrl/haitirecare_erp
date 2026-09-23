@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrées Stock - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/excel.js?v=7"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Entrées de Stock</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Rechercher...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        <div class="page-header">
+          <div class="page-actions">
+            <button class="btn btn-secondary" onclick="exportEntries()">
+              <i data-lucide="download"></i>
+              Exporter
+            </button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Nouvelle entrée</h3>
+          </div>
+          <form id="entry-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Article</label>
+                <select name="produit_id" class="form-select form-input" id="product-select" required>
+                  <option value="">Sélectionner un article</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Quantité</label>
+                <input type="number" name="quantite" class="form-input" min="1" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Prix unitaire</label>
+                <input type="number" name="prix_unitaire" class="form-input" min="0" step="0.01">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Fournisseur</label>
+                <input type="text" name="fournisseur" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">N° Bon de livraison</label>
+                <input type="text" name="reference" class="form-input">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea name="notes" class="form-input form-textarea"></textarea>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="submitEntry()">Enregistrer l'entrée</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Historique des entrées</h3>
+          </div>
+          <div class="table-container">
+            <table class="table" id="entries-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Article</th>
+                  <th>Quantité</th>
+                  <th>Prix unitaire</th>
+                  <th>Total</th>
+                  <th>Fournisseur</th>
+                  <th>Référence</th>
+                </tr>
+              </thead>
+              <tbody id="entries-table-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: var(--space-6);">
+                    <div class="loading">
+                      <div class="loading-spinner"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allEntries = [];
+    let allProducts = [];
+
+    async function loadProducts() {
+      try {
+        const { data: products } = await db.from('erp_produits').select('*').eq('is_active', true).order('designation');
+        allProducts = products || [];
+        
+        const select = document.getElementById('product-select');
+        select.innerHTML = '<option value="">Sélectionner un article</option>';
+        allProducts.forEach(p => {
+          select.innerHTML += `<option value="${p.id}">${p.code ? p.code + ' - ' : ''}${p.designation}</option>`;
+        });
+      } catch (error) {
+        console.error('Load products error:', error);
+      }
+    }
+
+    async function loadEntries() {
+      try {
+        const { data: entries } = await db
+          .from('erp_stock_movements')
+          .select('*, erp_produits(designation, code)')
+          .eq('type', 'entree')
+          .order('created_at', { ascending: false });
+        
+        allEntries = entries || [];
+        renderEntriesTable(allEntries);
+      } catch (error) {
+        console.error('Load entries error:', error);
+      }
+    }
+
+    function renderEntriesTable(entries) {
+      const tbody = document.getElementById('entries-table-body');
+      
+      if (!entries.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucune entrée</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = entries.map(entry => {
+        const product = entry.erp_produits || {};
+        const total = entry.quantite * (entry.prix_unitaire || 0);
+        
+        return `
+          <tr>
+            <td>${formatDate(entry.created_at)}</td>
+            <td>${product.code ? product.code + ' - ' : ''}${product.designation || 'N/A'}</td>
+            <td class="text-success">+${entry.quantite}</td>
+            <td>${formatCurrency(entry.prix_unitaire || 0)}</td>
+            <td>${formatCurrency(total)}</td>
+            <td>${entry.fournisseur || '-'}</td>
+            <td>${entry.reference || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function submitEntry() {
+      const form = document.getElementById('entry-form');
+      const formData = new FormData(form);
+      
+      const entryData = {
+        produit_id: formData.get('produit_id'),
+        type: 'entree',
+        quantite: parseFloat(formData.get('quantite')),
+        prix_unitaire: parseFloat(formData.get('prix_unitaire')) || null,
+        fournisseur: formData.get('fournisseur'),
+        reference: formData.get('reference'),
+        notes: formData.get('notes'),
+        created_by: window.currentUser?.id
+      };
+
+      if (!entryData.produit_id || !entryData.quantite) {
+        alert('Veuillez remplir les champs obligatoires');
+        return;
+      }
+
+      try {
+        await db.from('erp_stock_movements').insert(entryData);
+        form.reset();
+        await loadEntries();
+        logActivity('Entrée stock', 'Stock', `Entrée de ${entryData.quantite} unités`);
+      } catch (error) {
+        console.error('Submit entry error:', error);
+        alert('Erreur lors de l\'enregistrement');
+      }
+    }
+
+    function exportEntries() {
+      const data = allEntries.map(e => ({
+        Date: formatDate(e.created_at),
+        Article: e.erp_produits?.designation || 'N/A',
+        Code: e.erp_produits?.code || '',
+        Quantité: e.quantite,
+        'Prix unitaire': e.prix_unitaire || 0,
+        Total: e.quantite * (e.prix_unitaire || 0),
+        Fournisseur: e.fournisseur || '',
+        Référence: e.reference || '',
+        Notes: e.notes || ''
+      }));
+      
+      exportToExcel(data, 'entrees-stock', 'Entrées');
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(amount);
+    }
+
+    document.getElementById('entry-form').querySelector('input[name="date"]').valueAsDate = new Date();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadProducts();
+        loadEntries();
+      });
+    });
+  </script>
+</body>
+</html>

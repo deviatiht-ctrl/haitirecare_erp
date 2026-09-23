@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module - ERP Entreprise</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=6">
+  <link rel="stylesheet" href="/assets/css/main.css?v=6">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=6">
+  <link rel="stylesheet" href="/assets/css/components.css?v=6">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=6">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/js/supabase.js?v=7"></script>
+  <script src="/assets/js/auth.js?v=7"></script>
+  <script src="/assets/js/layout.js?v=7"></script>
+</head>
+<body>
+  <!-- Page de module GENERIQUE.
+       Elle rend n'importe quel module a la volee: /module.html?m=<code>
+       Les metadonnees viennent de ERP_MODULE_REGISTRY + erp_modules,
+       et les donnees de la table erp_<code> si elle existe. -->
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title" id="module-title">Module</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area" id="module-content">
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Chargement du module...</div>
+        </div>
+        <div class="skeleton-card" style="margin-top: var(--space-6);">
+          <div class="skeleton" style="height: 18px; width: 35%; margin-bottom: 22px;"></div>
+          <div class="skeleton" style="height: 14px; margin-bottom: 14px;"></div>
+          <div class="skeleton" style="height: 14px; margin-bottom: 14px;"></div>
+          <div class="skeleton" style="height: 14px; margin-bottom: 14px;"></div>
+          <div class="skeleton" style="height: 14px; width: 65%;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Colonnes a ne jamais afficher/editer dans le rendu generique
+    const SYSTEM_COLUMNS = ['id', 'created_at', 'updated_at', 'created_by', 'enterprise_id', 'user_id'];
+
+    let moduleCode = null;
+    let moduleMeta = null;
+    let tableName = null;
+    let tableColumns = [];
+
+    function prettify(code) {
+      return code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    async function loadModuleMeta(code) {
+      // 1. Registre local (assets/js/auth.js)
+      if (typeof ERP_MODULE_REGISTRY !== 'undefined' && ERP_MODULE_REGISTRY[code]) {
+        const r = ERP_MODULE_REGISTRY[code];
+        return { code, name: r.label, icon: r.icon, category: r.section, description: '' };
+      }
+      // 2. Base de donnees (erp_modules — inclut les modules sectoriels)
+      try {
+        const { data } = await db.from('erp_modules').select('*').eq('code', code).maybeSingle();
+        if (data) return data;
+      } catch (e) {
+        console.warn('erp_modules:', e);
+      }
+      // 3. Fallback: module genere a partir du code
+      return { code, name: prettify(code), icon: 'layout-grid', category: 'Modules', description: '' };
+    }
+
+    async function loadModuleData(code) {
+      // Convention: les donnees d'un module vivent dans erp_<code>
+      tableName = `erp_${code}`;
+      try {
+        const { data, error } = await db.from(tableName).select('*').order('created_at', { ascending: false }).limit(50);
+        if (error) return { supported: false, rows: [] };
+        return { supported: true, rows: data || [] };
+      } catch (e) {
+        return { supported: false, rows: [] };
+      }
+    }
+
+    function inferColumns(rows) {
+      if (rows.length) {
+        return Object.keys(rows[0]).filter(c => !SYSTEM_COLUMNS.includes(c));
+      }
+      // Table vide: colonnes generiques plausibles
+      return ['nom', 'description'];
+    }
+
+    function renderTable(rows, columns) {
+      if (!rows.length) {
+        return `<div style="text-align: center; padding: var(--space-8, 32px); color: var(--clr-text-muted, #94a3b8);">Aucune donnée enregistrée.</div>`;
+      }
+      return `
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr>${columns.map(c => `<th>${prettify(c)}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${rows.map(row => `
+                <tr>${columns.map(c => `<td>${formatCell(row[c])}</td>`).join('')}</tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function formatCell(v) {
+      if (v === null || v === undefined) return '-';
+      if (typeof v === 'boolean') return v ? 'Oui' : 'Non';
+      if (typeof v === 'object') return JSON.stringify(v);
+      return String(v);
+    }
+
+    function renderAddForm(columns) {
+      const editable = columns.filter(c => !SYSTEM_COLUMNS.includes(c)).slice(0, 8);
+      if (!editable.length) return '';
+      return `
+        <div class="card" style="margin-top: var(--space-6);">
+          <div class="card-header"><h3 class="card-title">Nouvel élément</h3></div>
+          <div class="card-body" style="padding: var(--space-5);">
+            <form id="module-add-form">
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;">
+                ${editable.map(c => `
+                  <div class="form-group">
+                    <label class="form-label">${prettify(c)}</label>
+                    <input type="text" name="${c}" class="form-input">
+                  </div>
+                `).join('')}
+              </div>
+              <button type="submit" class="btn btn-primary" style="margin-top: 16px;">
+                <i data-lucide="plus"></i> Ajouter
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    async function renderModule() {
+      const container = document.getElementById('module-content');
+      const titleEl = document.getElementById('module-title');
+
+      moduleCode = new URLSearchParams(window.location.search).get('m');
+      if (!moduleCode) {
+        titleEl.textContent = 'Module';
+        container.innerHTML = '<div class="card" style="padding: 32px; text-align: center;">Aucun module spécifié.</div>';
+        return;
+      }
+
+      moduleMeta = await loadModuleMeta(moduleCode);
+      titleEl.textContent = moduleMeta.name;
+      document.title = `${moduleMeta.name} - ERP Entreprise`;
+
+      const { supported, rows } = await loadModuleData(moduleCode);
+      tableColumns = inferColumns(rows);
+
+      const headerCard = `
+        <div class="card" style="margin-bottom: var(--space-6);">
+          <div style="display: flex; align-items: center; gap: 16px; padding: var(--space-5);">
+            <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #6366f1); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="${moduleMeta.icon || 'layout-grid'}"></i>
+            </div>
+            <div>
+              <h2 style="margin: 0; font-size: 20px;">${moduleMeta.name}</h2>
+              <p style="margin: 4px 0 0; color: var(--clr-text-muted, #94a3b8); font-size: 13px;">
+                ${moduleMeta.description || `Module ${moduleMeta.category || 'métier'} — interface générée automatiquement.`}
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (supported) {
+        container.innerHTML = headerCard + `
+          <div class="card">
+            <div class="card-header"><h3 class="card-title">Données — ${moduleMeta.name}</h3></div>
+            ${renderTable(rows, tableColumns)}
+          </div>
+          ${renderAddForm(tableColumns)}
+        `;
+
+        const form = document.getElementById('module-add-form');
+        if (form) {
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(form);
+            const record = {};
+            tableColumns.forEach(c => {
+              const v = fd.get(c);
+              if (v !== null && v !== '') record[c] = v;
+            });
+            if (!Object.keys(record).length) return;
+            const { error } = await db.from(tableName).insert(record);
+            if (error) {
+              alert('Erreur: ' + error.message);
+            } else {
+              if (typeof logActivity === 'function') logActivity('Création', moduleMeta.name, `Nouvel élément dans ${tableName}`);
+              renderModule();
+            }
+          });
+        }
+      } else {
+        container.innerHTML = headerCard + `
+          <div class="card" style="padding: 40px; text-align: center;">
+            <i data-lucide="puzzle" style="width: 40px; height: 40px; color: #3b82f6; margin-bottom: 16px;"></i>
+            <h3 style="margin: 0 0 8px;">Module actif</h3>
+            <p style="color: var(--clr-text-muted, #94a3b8); max-width: 480px; margin: 0 auto;">
+              Ce module est activé pour votre entreprise. Son interface dédiée sera
+              configurée par CVisual — aucune installation n'est nécessaire de votre côté.
+            </p>
+            <a href="/dashboard.html" class="btn btn-secondary" style="display: inline-flex; margin-top: 24px; text-decoration: none;">
+              <i data-lucide="arrow-left"></i> Retour au tableau de bord
+            </a>
+          </div>
+        `;
+      }
+
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then((user) => {
+        if (user) renderModule();
+      });
+    });
+  </script>
+</body>
+</html>
