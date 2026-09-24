@@ -301,11 +301,28 @@
   min-height: calc(100vh - var(--topbar-height));
 }
 
+/* Tablet */
+@media (max-width: 1024px) {
+  .content-area {
+    padding: var(--space-5, 20px);
+  }
+
+  .topbar-search input {
+    width: 180px;
+  }
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%) !important;
     width: 280px;
+  }
+
+  .sidebar-nav-item {
+    padding: var(--space-3);
+    min-height: 44px;
+    font-size: var(--font-size-base);
   }
 
   .sidebar.open {

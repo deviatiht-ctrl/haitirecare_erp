@@ -127,6 +127,7 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
@@ -677,6 +678,33 @@
 
 /* Mobile Responsive for Components */
 @media (max-width: 768px) {
+  /* Anti-zoom iOS: inputs >= 16px sur mobile */
+  .form-input,
+  .form-select,
+  .form-textarea,
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Cibles tactiles >= 44px */
+  .btn {
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: var(--space-2) var(--space-3);
+  }
+
   .kpi-grid {
     grid-template-columns: 1fr;
   }
@@ -687,11 +715,6 @@
 
   .kpi-value {
     font-size: var(--font-size-xl);
-  }
-
-  .table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .table {
@@ -771,6 +794,22 @@
 
   .empty-state-title {
     font-size: var(--font-size-base);
+  }
+
+  /* Tabs: scroll horizontal au lieu de deborder */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }
 

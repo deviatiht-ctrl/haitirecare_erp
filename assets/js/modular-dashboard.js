@@ -139,6 +139,7 @@ async function initModularDashboard() {
     renderDynamicContent({ produits, clients, modules: enabled, currency });
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    setupDashboardMobileNav();
     hideDashboardLoader();
 
   } catch (error) {
@@ -151,6 +152,31 @@ async function initModularDashboard() {
 function hideDashboardLoader() {
   const loader = document.getElementById('erp-loader');
   if (loader) loader.classList.add('done');
+}
+
+// Sidebar mobile: bouton flottant + overlay + fermeture au clic lien
+function setupDashboardMobileNav() {
+  const sidebar = document.querySelector('.dashboard-sidebar');
+  const overlay = document.getElementById('dash-overlay');
+  const btn = document.getElementById('dash-menu-btn');
+  if (!sidebar || !overlay || !btn || btn.dataset.bound) return;
+  btn.dataset.bound = '1';
+
+  const close = () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+  };
+
+  btn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('show');
+  });
+  overlay.addEventListener('click', close);
+
+  // Ferme le menu apres un clic sur un lien de navigation (mobile)
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.closest('a') && window.innerWidth <= 1024) close();
+  });
 }
 
 // --------------------------------------------------------------

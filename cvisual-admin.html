@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CVisual Admin - Enterprise Verification</title>
-  <link rel="stylesheet" href="assets/css/variables.css?v=6">
-  <link rel="stylesheet" href="assets/css/main.css?v=6">
-  <link rel="stylesheet" href="assets/css/components.css?v=6">
+  <link rel="stylesheet" href="assets/css/variables.css?v=7">
+  <link rel="stylesheet" href="assets/css/main.css?v=7">
+  <link rel="stylesheet" href="assets/css/components.css?v=7">
   <style>
     * {
       margin: 0;
@@ -352,15 +352,75 @@
       }
     }
     
+    /* Mobile menu + overlay */
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      z-index: 150;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    .sidebar-overlay.show {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 200;
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: #fff;
+      border: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.45);
+      cursor: pointer;
+    }
+
+    .mobile-menu-btn i {
+      width: 24px;
+      height: 24px;
+    }
+
     @media (max-width: 768px) {
       .admin-sidebar {
-        display: none;
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 160;
       }
-      
+
+      .admin-sidebar.open {
+        transform: translateX(0);
+        box-shadow: 20px 0 60px rgba(0, 0, 0, 0.5);
+      }
+
+      .mobile-menu-btn {
+        display: flex;
+      }
+
+      .admin-main {
+        padding: 20px 16px 96px;
+      }
+
       .stats-grid {
         grid-template-columns: 1fr;
       }
-      
+
       .feature-grid {
         grid-template-columns: 1fr;
       }
@@ -371,6 +431,11 @@
   <script src="assets/js/supabase.js?v=7"></script>
 </head>
 <body>
+  <div class="sidebar-overlay" id="admin-overlay"></div>
+  <button class="mobile-menu-btn" id="admin-menu-btn" title="Menu">
+    <i data-lucide="menu"></i>
+  </button>
+
   <div class="admin-container">
     <!-- Sidebar -->
     <div class="admin-sidebar">
@@ -804,7 +869,26 @@
     }
 
     // Initialize on page load
-    document.addEventListener('DOMContentLoaded', loadDashboardData);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDashboardData();
+
+      // Menu mobile
+      const sidebar = document.querySelector('.admin-sidebar');
+      const overlay = document.getElementById('admin-overlay');
+      const menuBtn = document.getElementById('admin-menu-btn');
+      const closeMenu = () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+      };
+      menuBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+      });
+      overlay.addEventListener('click', closeMenu);
+      sidebar.addEventListener('click', (e) => {
+        if (e.target.closest('a') && window.innerWidth <= 768) closeMenu();
+      });
+    });
   </script>
 </body>
 </html>

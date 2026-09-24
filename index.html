@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Connexion - ERP Entreprise</title>
-  <link rel="stylesheet" href="assets/css/variables.css?v=6">
-  <link rel="stylesheet" href="assets/css/main.css?v=6">
-  <link rel="stylesheet" href="assets/css/components.css?v=6">
+  <link rel="stylesheet" href="assets/css/variables.css?v=7">
+  <link rel="stylesheet" href="assets/css/main.css?v=7">
+  <link rel="stylesheet" href="assets/css/components.css?v=7">
   <style>
     * {
       margin: 0;
@@ -292,6 +292,54 @@
     
     .hidden {
       display: none;
+    }
+
+    /* Mobile */
+    @media (max-width: 640px) {
+      .login-page {
+        padding: var(--space-3);
+      }
+
+      .login-card {
+        border-radius: 18px;
+      }
+
+      .login-card-header {
+        padding: 32px 24px 24px;
+      }
+
+      .login-card-header h1 {
+        font-size: 22px;
+      }
+
+      .login-card-header img {
+        height: 48px;
+      }
+
+      .login-card-body {
+        padding: 28px 20px;
+      }
+
+      .form-group {
+        margin-bottom: 24px;
+      }
+
+      .form-input {
+        padding: 18px 16px 18px 50px;
+        border-radius: 14px;
+      }
+
+      .form-input-wrapper i {
+        left: 16px;
+      }
+
+      .form-label {
+        left: 50px;
+      }
+
+      .btn {
+        min-height: 48px;
+      }
     }
   </style>
   <script src="https://unpkg.com/lucide@latest"></script>

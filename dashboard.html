@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - ERP Entreprise</title>
-  <link rel="stylesheet" href="assets/css/variables.css?v=6">
-  <link rel="stylesheet" href="assets/css/main.css?v=6">
-  <link rel="stylesheet" href="assets/css/components.css?v=6">
+  <link rel="stylesheet" href="assets/css/variables.css?v=7">
+  <link rel="stylesheet" href="assets/css/main.css?v=7">
+  <link rel="stylesheet" href="assets/css/components.css?v=7">
   <style>
     /* ===== Layout ===== */
     .dashboard-container {
@@ -32,7 +32,7 @@
       height: 100vh;
       left: 0;
       top: 0;
-      z-index: 100;
+      z-index: 160;
       overflow: hidden;
     }
 
@@ -736,6 +736,53 @@
       background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
     }
 
+    /* ===== Mobile: menu + overlay ===== */
+    .mobile-menu-btn {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 200;
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff;
+      border: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.45);
+      cursor: pointer;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .mobile-menu-btn:active {
+      transform: scale(0.94);
+    }
+
+    .mobile-menu-btn i {
+      width: 24px;
+      height: 24px;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(2px);
+      z-index: 150;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity var(--transition-base), visibility var(--transition-base);
+    }
+
+    .sidebar-overlay.show {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
     /* ===== Responsive ===== */
     @media (max-width: 1400px) {
       .stats-grid {
@@ -754,10 +801,21 @@
     @media (max-width: 1024px) {
       .dashboard-sidebar {
         transform: translateX(-100%);
+        transition: transform var(--transition-slow);
+        box-shadow: none;
+      }
+
+      .dashboard-sidebar.open {
+        transform: translateX(0);
+        box-shadow: 20px 0 60px rgba(0, 0, 0, 0.35);
       }
 
       .dashboard-main {
         margin-left: 0;
+      }
+
+      .mobile-menu-btn {
+        display: flex;
       }
     }
 
@@ -771,11 +829,69 @@
       }
 
       .dashboard-main {
-        padding: 20px 16px 40px;
+        padding: 76px 16px 96px;
       }
 
       .dashboard-header {
         flex-direction: column;
+      }
+
+      .dashboard-header h1 {
+        font-size: 22px;
+      }
+
+      .header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .header-btn {
+        flex: 1;
+        justify-content: center;
+        min-height: 44px;
+      }
+
+      .theme-toggle.header-btn {
+        flex: 0 0 auto;
+      }
+
+      .stat-card,
+      .section-card,
+      .quick-action-card {
+        border-radius: 14px;
+      }
+
+      .dash-table {
+        font-size: 12px;
+      }
+
+      .dash-table th,
+      .dash-table td {
+        padding: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .quick-action-card {
+        display: flex;
+        align-items: center;
+        text-align: left;
+        gap: 14px;
+        padding: 14px 16px;
+      }
+
+      .quick-action-icon {
+        margin: 0;
+        flex-shrink: 0;
+      }
+
+      .quick-action-desc {
+        margin-top: 2px;
+      }
+
+      .dash-list-row {
+        flex-direction: column;
+        align-items: flex-start;
       }
     }
   </style>
@@ -786,6 +902,12 @@
   <script src="assets/js/modular-dashboard.js?v=7"></script>
 </head>
 <body>
+  <!-- Overlay + bouton menu mobile -->
+  <div class="sidebar-overlay" id="dash-overlay"></div>
+  <button class="mobile-menu-btn" id="dash-menu-btn" title="Menu">
+    <i data-lucide="menu"></i>
+  </button>
+
   <!-- Loader plein ecran — retire par modular-dashboard.js une fois rendu -->
   <div class="erp-loader" id="erp-loader">
     <div class="erp-loader-inner">
