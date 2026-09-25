@@ -3,7 +3,7 @@
 // Ordre d'affichage des sections dans la sidebar
 // Les sections non listees sont inserees avant 'Administration'
 const ERP_NAV_SECTION_ORDER = [
-  'Principal', 'Clinique', 'Gestion', 'RH', 'Communication', 'Rapports', 'Modules', 'Administration'
+  'Principal', 'Clinique', 'Gestion', 'Site Web', 'RH', 'Communication', 'Rapports', 'Modules', 'Administration'
 ];
 
 // Construit la navigation à partir des modules activés de
@@ -72,12 +72,12 @@ async function renderSidebar(user) {
 
   const logoImg = sidebar.querySelector('.sidebar-logo');
   if (logoImg && settings) {
-    logoImg.src = settings.logo_url || '/assets/img/logo-placeholder.svg';
+    logoImg.src = settings.logo_url || '/assets/img/logohaitirecare.png';
     logoImg.alt = settings.company_name || 'ERP';
   }
 
   // Secteur: dérivé du type d'entreprise (hospital -> clinique, etc.)
-  const SECTOR_ALIAS = { hospital: 'clinique', education: 'ecole' };
+  const SECTOR_ALIAS = { hospital: 'clinique', physiotherapy: 'clinique', education: 'ecole' };
   const typeCode = window.enterpriseContext?.type?.code;
   const sector = SECTOR_ALIAS[typeCode] || settings?.sector || 'commerce';
 

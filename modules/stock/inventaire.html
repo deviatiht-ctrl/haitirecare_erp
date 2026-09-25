@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventaire - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Inventaire - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
-  <script src="/assets/js/excel.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
+  <script src="/assets/js/excel.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -200,10 +200,18 @@
 
   <script>
     let allProducts = [];
-    const canEdit = hasPermission('stock');
+    let canEdit = false;
+    let currentEditId = null;
 
     async function loadProducts() {
       try {
+        canEdit = Boolean(
+          window.currentUser?.role === 'pdg' ||
+          hasPermission('stock') ||
+          hasPermission('materiel_orthopedique') ||
+          hasPermission('catalogue')
+        );
+
         const { data: products } = await db
           .from('erp_produits')
           .select('*')
@@ -211,10 +219,32 @@
           .order('code');
         
         allProducts = products || [];
-        renderProductsTable(allProducts);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const catParam = urlParams.get('cat');
+        const modParam = urlParams.get('m');
+
+        if (catParam || modParam === 'materiel_orthopedique') {
+          const categoryName = catParam || 'Matériel Orthopédique';
+          document.title = `${categoryName} - HAITI REH-CARE ERP`;
+          const titleEl = document.querySelector('.topbar-title');
+          if (titleEl) titleEl.textContent = categoryName;
+
+          const filterCatEl = document.getElementById('filter-category');
+          if (filterCatEl) filterCatEl.value = categoryName;
+
+          applyFilters();
+        } else {
+          renderProductsTable(allProducts);
+        }
         
-        if (!canEdit) {
-          document.getElementById('add-product-btn').classList.add('hidden');
+        const addBtn = document.getElementById('add-product-btn');
+        if (addBtn) {
+          if (!canEdit) {
+            addBtn.classList.add('hidden');
+          } else {
+            addBtn.classList.remove('hidden');
+          }
         }
       } catch (error) {
         console.error('Load products error:', error);
@@ -246,14 +276,14 @@
             <td>
               <div class="table-actions">
                 ${canEdit ? `
-                  <button class="table-action-btn" onclick="editProduct('${product.id}')">
+                  <button class="table-action-btn" title="Modifier" onclick="editProduct('${product.id}')">
                     <i data-lucide="edit"></i>
                   </button>
-                  <button class="table-action-btn danger" onclick="deleteProduct('${product.id}')">
+                  <button class="table-action-btn danger" title="Supprimer" onclick="deleteProduct('${product.id}')">
                     <i data-lucide="trash-2"></i>
                   </button>
                 ` : `
-                  <button class="table-action-btn" onclick="viewProduct('${product.id}')">
+                  <button class="table-action-btn" title="Voir" onclick="viewProduct('${product.id}')">
                     <i data-lucide="eye"></i>
                   </button>
                 `}
@@ -273,12 +303,42 @@
     }
 
     function openAddProductModal() {
+      currentEditId = null;
+      document.querySelector('#add-product-modal .modal-title').textContent = 'Ajouter un article';
+      document.getElementById('add-product-form').reset();
       document.getElementById('add-product-modal').classList.remove('hidden');
     }
 
     function closeAddProductModal() {
+      currentEditId = null;
       document.getElementById('add-product-modal').classList.add('hidden');
       document.getElementById('add-product-form').reset();
+    }
+
+    function editProduct(productId) {
+      const product = allProducts.find(p => p.id === productId);
+      if (!product) return;
+      currentEditId = productId;
+      const form = document.getElementById('add-product-form');
+      form.code.value = product.code || '';
+      form.designation.value = product.designation || '';
+      form.categorie.value = product.categorie || '';
+      form.fournisseur.value = product.fournisseur || '';
+      form.quantite.value = product.quantite || 0;
+      form.quantite_min.value = product.quantite_min || 0;
+      form.prix_achat.value = product.prix_achat || 0;
+      form.prix_vente.value = product.prix_vente || 0;
+      form.unite.value = product.unite || 'pièce';
+      form.description.value = product.description || '';
+
+      document.querySelector('#add-product-modal .modal-title').textContent = 'Modifier l\'article';
+      document.getElementById('add-product-modal').classList.remove('hidden');
+    }
+
+    function viewProduct(productId) {
+      const p = allProducts.find(x => x.id === productId);
+      if (!p) return;
+      alert(`Article: ${p.designation}\nCode: ${p.code || '-'}\nCatégorie: ${p.categorie || '-'}\nStock: ${p.quantite}\nPrix vente: ${formatCurrency(p.prix_vente)}`);
     }
 
     async function submitAddProduct() {
@@ -300,13 +360,18 @@
       };
 
       try {
-        await db.from('erp_produits').insert(productData);
+        if (currentEditId) {
+          await db.from('erp_produits').update(productData).eq('id', currentEditId);
+          logActivity('Modification produit', 'Stock', `Produit ${productData.code} modifié`);
+        } else {
+          await db.from('erp_produits').insert(productData);
+          logActivity('Création produit', 'Stock', `Produit ${productData.code} créé`);
+        }
         closeAddProductModal();
         await loadProducts();
-        logActivity('Création produit', 'Stock', `Produit ${productData.code} créé`);
       } catch (error) {
-        console.error('Add product error:', error);
-        alert('Erreur lors de l\'ajout');
+        console.error('Submit product error:', error);
+        alert('Erreur lors de l\'enregistrement');
       }
     }
 

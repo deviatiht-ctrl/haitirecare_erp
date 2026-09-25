@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Utilisateurs - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Utilisateurs - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
-  <script src="/assets/js/excel.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
+  <script src="/assets/js/excel.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -140,12 +140,14 @@
           <div class="form-group">
             <label class="form-label">Rôle</label>
             <select name="role" class="form-select form-input" required>
-              <option value="employe">Employé</option>
+              <option value="employe">Employé / Praticien</option>
               <option value="secretaire">Secrétaire</option>
               <option value="comptable">Comptable</option>
               <option value="responsable_stock">Responsable Stock</option>
               <option value="commercial">Commercial</option>
               <option value="rh">RH</option>
+              <option value="manager">Manager</option>
+              <option value="directeur">Directeur</option>
               <option value="pdg">PDG</option>
             </select>
           </div>
@@ -260,40 +262,51 @@
     async function submitAddUser() {
       const form = document.getElementById('add-user-form');
       const formData = new FormData(form);
-      
-      const userData = {
-        email: formData.get('email'),
-        password: formData.get('password'),
-        options: {
-          data: {
-            first_name: formData.get('first_name'),
-            last_name: formData.get('last_name')
-          }
-        }
-      };
+      const email = formData.get('email');
+      const password = formData.get('password');
+      const firstName = formData.get('first_name');
+      const lastName = formData.get('last_name');
+      const role = formData.get('role');
+      const posteId = formData.get('poste_id') || null;
+      const phone = formData.get('phone');
 
       try {
-        const { data: authData, error: authError } = await db.auth.signUp(userData);
-        
+        // IMPORTANT: signUp() sur le client principal remplacerait la session
+        // de l'admin par celle du nouvel employé → l'insert échoue ensuite sur
+        // la RLS (le bug "visible dans Supabase mais pas dans l'ERP").
+        // On utilise un client temporaire sans persistance de session.
+        const tmpClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        });
+
+        const { data: authData, error: authError } = await tmpClient.auth.signUp({
+          email, password,
+          options: { data: { first_name: firstName, last_name: lastName } }
+        });
         if (authError) throw authError;
+        if (!authData.user) throw new Error('Création du compte échouée');
+        if (authData.user.identities && authData.user.identities.length === 0) {
+          throw new Error('Un compte existe déjà avec cet email');
+        }
 
-        const profileData = {
-          id: authData.user.id,
-          first_name: formData.get('first_name'),
-          last_name: formData.get('last_name'),
-          email: formData.get('email'),
-          phone: formData.get('phone'),
-          role: formData.get('role'),
-          poste_id: formData.get('poste_id') || null
-        };
+        // Crée le profil erp_users + le lien entreprise + la fiche employé
+        // en un seul appel sécurisé (session admin conservée).
+        const { error: rpcError } = await db.rpc('erp_register_staff', {
+          p_user_id: authData.user.id,
+          p_email: email,
+          p_first_name: firstName,
+          p_last_name: lastName,
+          p_role: role,
+          p_poste_id: posteId,
+          p_phone: phone || null
+        });
+        if (rpcError) throw rpcError;
 
-        await db.from('erp_users').insert(profileData);
-        
         closeAddUserModal();
         await loadUsers();
-        
-        logActivity('Création utilisateur', 'Users', `Utilisateur ${profileData.email} créé`);
-        
+
+        logActivity('Création utilisateur', 'Users', `Utilisateur ${email} créé`);
+
       } catch (error) {
         console.error('Add user error:', error);
         alert('Erreur lors de la création: ' + error.message);

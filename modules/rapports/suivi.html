@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Suivi d'Activité - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Suivi d'Activité - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -112,7 +112,9 @@
       const module = document.getElementById('filter-module').value;
 
       try {
-        let query = db.from('erp_activites').select('*, erp_users(first_name, last_name)').order('created_at', { ascending: false }).limit(50);
+        // user_id refere auth.users (pa erp_users) → join pa mache;
+        // non yo fize separe pi ba.
+        let query = db.from('erp_activites').select('*').order('created_at', { ascending: false }).limit(50);
         
         if (dateStart) {
           query = query.gte('created_at', dateStart);
@@ -125,7 +127,10 @@
         }
 
         const { data: activities } = await query;
-        renderActivities(activities || []);
+        const { data: users } = await db.from('erp_users').select('id, first_name, last_name');
+        const userMap = {};
+        (users || []).forEach(u => { userMap[u.id] = u; });
+        renderActivities((activities || []).map(a => ({ ...a, erp_users: userMap[a.user_id] || null })));
       } catch (error) {
         console.error('Load activities error:', error);
       }

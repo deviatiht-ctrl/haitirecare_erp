@@ -1,5 +1,14 @@
 // HR module helper functions
 
+// employe_id refere auth.users (pa erp_users) → join PostgREST pa mache;
+// fize non yo apre requete a.
+async function withUserNames(rows, key = 'employe_id', prop = 'erp_users') {
+  const { data: users } = await db.from('erp_users').select('id, first_name, last_name');
+  const map = {};
+  (users || []).forEach(u => { map[u.id] = u; });
+  return (rows || []).map(r => ({ ...r, [prop]: map[r[key]] || null }));
+}
+
 export async function loadEmployees(filters = {}) {
   let query = db.from('erp_users').select('*, erp_postes(*)').eq('is_active', true);
   
@@ -22,7 +31,7 @@ export async function loadEmployees(filters = {}) {
 }
 
 export async function loadPresences(filters = {}) {
-  let query = db.from('erp_presences').select('*, erp_users(first_name, last_name)');
+  let query = db.from('erp_presences').select('*');
   
   if (filters.date) {
     query = query.eq('date_presence', filters.date);
@@ -42,8 +51,8 @@ export async function loadPresences(filters = {}) {
     console.error('Load presences error:', error);
     return [];
   }
-  
-  return data || [];
+
+  return withUserNames(data);
 }
 
 export async function markPresence(employeeId, date, status, notes = '') {
@@ -62,7 +71,7 @@ export async function markPresence(employeeId, date, status, notes = '') {
 }
 
 export async function loadLeaves(filters = {}) {
-  let query = db.from('erp_conges').select('*, erp_users(first_name, last_name)');
+  let query = db.from('erp_conges').select('*');
   
   if (filters.status) {
     query = query.eq('statut', filters.status);
@@ -78,8 +87,8 @@ export async function loadLeaves(filters = {}) {
     console.error('Load leaves error:', error);
     return [];
   }
-  
-  return data || [];
+
+  return withUserNames(data);
 }
 
 export async function createLeave(leaveData) {
@@ -107,7 +116,7 @@ export async function updateLeaveStatus(leaveId, status, comment = '') {
 }
 
 export async function loadPerformances(filters = {}) {
-  let query = db.from('erp_performances').select('*, erp_users(first_name, last_name)');
+  let query = db.from('erp_performances').select('*');
   
   if (filters.employeeId) {
     query = query.eq('employe_id', filters.employeeId);
@@ -123,8 +132,8 @@ export async function loadPerformances(filters = {}) {
     console.error('Load performances error:', error);
     return [];
   }
-  
-  return data || [];
+
+  return withUserNames(data);
 }
 
 export async function createPerformance(performanceData) {

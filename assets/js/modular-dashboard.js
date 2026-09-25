@@ -68,22 +68,7 @@ async function initModularDashboard() {
     }
     const ctx = window.enterpriseContext || { modules: ['clients', 'taches', 'messages', 'rapports'] };
 
-    // 3. CVisual admin ?
-    let isCvisualAdmin = false;
-    try {
-      if (session?.user?.id) {
-        const { data: adminData } = await db
-          .from('erp_cvisual_admins')
-          .select('id, admin_level')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-        if (adminData) isCvisualAdmin = true;
-      }
-    } catch (e) {
-      console.warn('Erreur check admin:', e);
-    }
-
-    // 4. Metadonnees affichage
+    // 3. Metadonnees affichage
     const enterprise = ctx.enterprise;
     const settings = ctx.settings;
     const companyName = enterprise?.company_name || settings?.company_name || 'Mon Entreprise';
@@ -107,7 +92,10 @@ async function initModularDashboard() {
 
     if (has('clients') || has('patients') || has('etudiants') || has('ventes')) {
       try {
-        const { data } = await db.from('erp_clients').select('*').order('created_at', { ascending: false }).limit(6);
+        // Centres de soins: la liste vient des dossiers patients
+        const clientTable = (typeCode === 'physiotherapy' || typeCode === 'hospital')
+          ? 'erp_patients' : 'erp_clients';
+        const { data } = await db.from(clientTable).select('*').order('created_at', { ascending: false }).limit(6);
         if (data) clients = data;
       } catch (e) { console.warn('Clients:', e); }
     }
@@ -132,9 +120,9 @@ async function initModularDashboard() {
     }
 
     // 6. Rendu dynamique
-    renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName, userRole, isCvisualAdmin });
+    renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName, userRole });
     renderDynamicStats({ clientsCount: clients.length, produitsCount: produits.length, usersCount, tachesCount, currency, modules: enabled });
-    renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole, isCvisualAdmin });
+    renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole });
     renderDynamicQuickActions();
     renderDynamicContent({ produits, clients, modules: enabled, currency });
 
@@ -156,7 +144,7 @@ function hideDashboardLoader() {
 
 // Sidebar mobile: bouton flottant + overlay + fermeture au clic lien
 function setupDashboardMobileNav() {
-  const sidebar = document.querySelector('.dashboard-sidebar');
+  const sidebar = document.querySelector('.dashboard-sidebar') || document.getElementById('dynamic-sidebar');
   const overlay = document.getElementById('dash-overlay');
   const btn = document.getElementById('dash-menu-btn');
   if (!sidebar || !overlay || !btn || btn.dataset.bound) return;
@@ -182,13 +170,16 @@ function setupDashboardMobileNav() {
 // --------------------------------------------------------------
 // Header
 // --------------------------------------------------------------
-function renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName, isCvisualAdmin }) {
+function renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName }) {
   const headerContainer = document.getElementById('dynamic-header');
   if (!headerContainer) return;
 
   headerContainer.innerHTML = `
     <div>
       <div class="dash-title-row">
+        <button class="mobile-menu-btn" id="dash-menu-btn" title="Menu" style="margin-right: 8px;">
+          <i data-lucide="menu"></i>
+        </button>
         <h1>Bienvenue, ${firstName}</h1>
         <span class="dash-type-badge">
           <i data-lucide="${typeIcon}"></i>
@@ -204,12 +195,6 @@ function renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, fir
         <i data-lucide="moon" class="theme-icon-moon"></i>
         <i data-lucide="sun" class="theme-icon-sun"></i>
       </button>
-      ${isCvisualAdmin ? `
-        <a href="cvisual-admin.html" class="header-btn header-btn-admin">
-          <i data-lucide="shield-check"></i>
-          Console Super Admin
-        </a>
-      ` : ''}
       <button onclick="window.location.reload()" class="header-btn header-btn-ghost">
         <i data-lucide="refresh-cw"></i>
         Actualiser
@@ -288,7 +273,7 @@ function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCou
 // --------------------------------------------------------------
 // Sidebar — 100% dynamique depuis les modules de l'entreprise
 // --------------------------------------------------------------
-function renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole, isCvisualAdmin }) {
+function renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole }) {
   const sidebarContainer = document.getElementById('dynamic-sidebar');
   if (!sidebarContainer) return;
 
@@ -296,7 +281,7 @@ function renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, use
 
   // Navigation dynamique: modules tries par section
   // Les sections non listees sont inserees avant 'Administration'
-  const SECTION_ORDER = ['Principal', 'Clinique', 'Gestion', 'RH', 'Communication', 'Rapports', 'Modules', 'Administration'];
+  const SECTION_ORDER = ['Principal', 'Clinique', 'Gestion', 'Site Web', 'RH', 'Communication', 'Rapports', 'Modules', 'Administration'];
   const items = typeof getVisibleNavModules === 'function' ? getVisibleNavModules() : [];
 
   const grouped = {};
@@ -333,19 +318,11 @@ function renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, use
     });
   });
 
-  if (isCvisualAdmin) {
-    navHtml += `
-      <a href="cvisual-admin.html" class="dash-nav-item admin">
-        <i data-lucide="shield"></i>
-        CVisual Admin
-      </a>
-    `;
-  }
-
+  const logoUrl = window.enterpriseContext?.settings?.logo_url || '/assets/img/logohaitirecare.png';
   sidebarContainer.innerHTML = `
     <div class="dash-brand">
-      <div class="dash-brand-logo">
-        ${companyName.slice(0, 2).toUpperCase()}
+      <div class="dash-brand-logo" style="background: transparent; padding: 0; overflow: hidden; width: auto; height: 38px; box-shadow: none;">
+        <img src="${logoUrl}" alt="${companyName}" style="height: 38px; width: auto; max-width: 140px; object-fit: contain; border-radius: 8px;">
       </div>
       <div style="overflow: hidden; min-width: 0;">
         <h2 class="dash-brand-name">${companyName}</h2>
@@ -394,7 +371,9 @@ const ERP_QUICK_ACTIONS = {
   ortheses:   { label: 'Orthèses',         desc: 'Suivi des orthèses en cours',          color: '#8b5cf6' },
   commandes:  { label: 'Commande',         desc: 'Prendre une nouvelle commande',        color: '#f59e0b' },
   users:      { label: 'Équipe & Accès',   desc: 'Gérer les collaborateurs',             color: '#8b5cf6' },
-  parametres: { label: 'Paramètres',       desc: 'Configurer votre entreprise',          color: '#64748b' }
+  parametres: { label: 'Paramètres',       desc: 'Configurer votre entreprise',          color: '#64748b' },
+  siteweb:    { label: 'Site Web',         desc: 'RDV en ligne, annonces & messages',    color: '#2563eb' },
+  annonces:   { label: 'Annonces',         desc: 'Modérer achat/vente de matériel',      color: '#0d9488' }
 };
 
 function renderDynamicQuickActions() {

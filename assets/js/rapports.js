@@ -77,8 +77,10 @@ export async function getFinancialReport(dateStart, dateEnd) {
   };
 }
 
+// user_id refere auth.users (pa erp_users) → join PostgREST pa mache;
+// fize non yo apre requete a.
 export async function getActivityLog(filters = {}) {
-  let query = db.from('erp_activites').select('*, erp_users(first_name, last_name)');
+  let query = db.from('erp_activites').select('*');
   
   if (filters.dateStart) {
     query = query.gte('created_at', filters.dateStart);
@@ -102,8 +104,11 @@ export async function getActivityLog(filters = {}) {
     console.error('Load activity log error:', error);
     return [];
   }
-  
-  return data || [];
+
+  const { data: users } = await db.from('erp_users').select('id, first_name, last_name');
+  const map = {};
+  (users || []).forEach(u => { map[u.id] = u; });
+  return (data || []).map(a => ({ ...a, erp_users: map[a.user_id] || null }));
 }
 
 export async function logActivity(action, module, details = '') {

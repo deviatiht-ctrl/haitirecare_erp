@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Messages - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Messages - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -149,9 +149,11 @@
 
     async function loadConversations() {
       try {
+        // sender_id/recipient_id refere auth.users (pa erp_users) →
+        // join pa mache; requete mesaj + map non yo separe.
         const { data: conversations } = await db
           .from('erp_messages')
-          .select('*, sender:erp_users(first_name, last_name), recipient:erp_users(first_name, last_name)')
+          .select('*')
           .or(`sender_id.eq.${window.currentUser?.id},recipient_id.eq.${window.currentUser?.id}`)
           .order('created_at', { ascending: false });
 
@@ -162,11 +164,16 @@
           return;
         }
 
+        // Non tout itilizatè yo (staff)
+        const { data: allUsers } = await db.from('erp_users').select('id, first_name, last_name');
+        const userMap = {};
+        (allUsers || []).forEach(u => { userMap[u.id] = u; });
+
         // Group by conversation partner
         const grouped = {};
         conversations.forEach(msg => {
           const partnerId = msg.sender_id === window.currentUser.id ? msg.recipient_id : msg.sender_id;
-          const partner = msg.sender_id === window.currentUser.id ? msg.recipient : msg.sender;
+          const partner = userMap[partnerId] || null;
           if (!grouped[partnerId]) {
             grouped[partnerId] = {
               partnerId,
@@ -177,9 +184,26 @@
           }
         });
 
+        // Résoudre les partenaires qui ne sont pas dans erp_users
+        // (comptes patients du site public → erp_patients.user_id)
+        const unresolved = Object.values(grouped).filter(c => !c.partner?.first_name).map(c => c.partnerId);
+        if (unresolved.length) {
+          const { data: patients } = await db
+            .from('erp_patients')
+            .select('user_id, nom, prenom')
+            .in('user_id', unresolved);
+          const byUser = {};
+          (patients || []).forEach(p => byUser[p.user_id] = p);
+          Object.values(grouped).forEach(c => {
+            if (!c.partner?.first_name && byUser[c.partnerId]) {
+              c.partner = { first_name: byUser[c.partnerId].prenom || 'Patient', last_name: byUser[c.partnerId].nom };
+            }
+          });
+        }
+
         container.innerHTML = Object.values(grouped).map(conv => `
           <div class="conversation-item" onclick="selectConversation('${conv.partnerId}')" style="padding: var(--space-3); border-bottom: 1px solid var(--clr-border); cursor: pointer; ${conv.unread ? 'background: var(--clr-bg-soft);' : ''}">
-            <div style="font-weight: var(--font-weight-medium);">${conv.partner?.first_name} ${conv.partner?.last_name || ''}</div>
+            <div style="font-weight: var(--font-weight-medium);">${conv.partner?.first_name || 'Patient'} ${conv.partner?.last_name || ''}</div>
             <div style="font-size: var(--font-size-sm); color: var(--clr-text-muted);">${conv.lastMessage.content.substring(0, 50)}...</div>
             <div style="font-size: var(--font-size-xs); color: var(--clr-text-muted); margin-top: var(--space-1);">${formatTimeAgo(conv.lastMessage.created_at)}</div>
           </div>
@@ -194,8 +218,16 @@
       currentConversation = partnerId;
       
       try {
-        const { data: partner } = await db.from('erp_users').select('*').eq('id', partnerId).single();
-        document.getElementById('chat-title').textContent = `${partner.first_name} ${partner.last_name}`;
+        const { data: partner } = await db.from('erp_users').select('*').eq('id', partnerId).maybeSingle();
+        if (partner) {
+          document.getElementById('chat-title').textContent = `${partner.first_name} ${partner.last_name}`;
+        } else {
+          // Compte patient du site public (pas dans erp_users)
+          const { data: patient } = await db.from('erp_patients').select('nom, prenom').eq('user_id', partnerId).maybeSingle();
+          document.getElementById('chat-title').textContent = patient
+            ? `${patient.prenom || ''} ${patient.nom} (Patient)`.trim()
+            : 'Patient';
+        }
         
         await loadMessages(partnerId);
         document.getElementById('message-input-area').style.display = 'block';
@@ -212,7 +244,7 @@
       try {
         const { data: messages } = await db
           .from('erp_messages')
-          .select('*, sender:erp_users(first_name, last_name)')
+          .select('*')
           .or(`and(sender_id.eq.${window.currentUser.id},recipient_id.eq.${partnerId}),and(sender_id.eq.${partnerId},recipient_id.eq.${window.currentUser.id})`)
           .order('created_at', { ascending: true });
 
@@ -333,6 +365,9 @@
     function formatRole(role) {
       const roles = {
         'pdg': 'PDG',
+        'directrice': 'Directrice',
+        'directeur': 'Directeur',
+        'manager': 'Manager',
         'secretaire': 'Secrétaire',
         'comptable': 'Comptable',
         'responsable_stock': 'Resp. Stock',
@@ -370,6 +405,9 @@
       initApp().then(() => {
         loadConversations();
         loadUsers();
+        // ?to=<user_id> — ouvre directement la conversation (ex: depuis Site Web)
+        const to = new URLSearchParams(window.location.search).get('to');
+        if (to) selectConversation(to);
       });
     });
   </script>

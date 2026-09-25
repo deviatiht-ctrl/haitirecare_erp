@@ -1,0 +1,17 @@
+{
+  "name": "HAITI REH-CARE ERP",
+  "short_name": "RehCare ERP",
+  "description": "Système de Gestion ERP & Physiothérapie HAITI REH-CARE",
+  "start_url": "/dashboard.html",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#2563EB",
+  "icons": [
+    {
+      "src": "/assets/img/logohaitirecare.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

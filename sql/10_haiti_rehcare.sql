@@ -13,7 +13,7 @@ INSERT INTO erp_enterprise_types (code, name, description, icon, features) VALUE
 ('physiotherapy', 'Centre de Physiothérapie',
  'Physiothérapie, massothérapie, orthèses, prothèses et matériel orthopédique',
  'activity',
- '{"modules": ["patients","rdv","seances","services","protheses","ortheses","materiel_orthopedique","stock","catalogue","ventes","caisse","facturation","finances","employes","presences"], "interface": "medical"}')
+ '{"modules": ["patients","rdv","seances","services","protheses","ortheses","materiel_orthopedique","stock","catalogue","ventes","caisse","facturation","finances","employes","presences","taches","messages","rapports","annonces","siteweb","users","parametres"], "interface": "medical"}')
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
@@ -268,7 +268,7 @@ CREATE POLICY "ortheses_delete" ON erp_ortheses FOR DELETE USING (erp_is_pdg());
 
 -- ------------------------------------------------------------
 -- 5. RPC public — catalogue sans connexion
---    catalogue.html?e=<enterprise_id> appelle cette fonction.
+--    site/materiel.html appelle cette fonction (via erp_public_enterprise).
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION erp_public_catalog(p_enterprise_id uuid)
 RETURNS jsonb AS $$
@@ -340,6 +340,22 @@ BEGIN
     subscription_plan = 'premium',
     features_unlocked = '{"all": true}'
   RETURNING id INTO v_enterprise_id;
+
+  -- Mete ajou liy settings ki deja egziste a (evite doub —
+  -- .single() nan UI la ta echwe si plizyè liy)
+  UPDATE erp_settings SET
+    company_name = 'HAITI REH-CARE',
+    company_email = 'haitirecareerp@gmail.com',
+    company_phone = '+509 0000 0000',
+    company_address = 'Port-au-Prince',
+    company_city = 'Port-au-Prince',
+    company_country = 'Haïti',
+    sector = 'Santé — Physiothérapie',
+    enterprise_id = v_enterprise_id,
+    is_enterprise_active = true,
+    subscription_status = 'active',
+    features_enabled = '{"all": true}'
+  WHERE enterprise_id IS NULL OR enterprise_id = v_enterprise_id;
 
   INSERT INTO erp_settings (
     company_name, company_email, company_phone, company_address,
@@ -580,10 +596,10 @@ WHERE NOT EXISTS (
 
 -- ------------------------------------------------------------
 -- LIEN PUBLIC (à donner aux patients):
---   catalogue.html?e=<enterprise_id>
+--   site/materiel.html
 -- L'ID est affiché par cette requête:
 SELECT id AS enterprise_id,
        company_name,
-       'catalogue.html?e=' || id AS lien_catalogue_public
+       'site/materiel.html' || id AS lien_catalogue_public
 FROM erp_enterprise_registrations
 WHERE company_email = 'haitirecareerp@gmail.com';

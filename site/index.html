@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HAITI REH-CARE — Centre de Physiothérapie & Réadaptation</title>
+  <meta name="description" content="HAITI REH-CARE : physiothérapie, massothérapie, prothèses, orthèses et matériel orthopédique en Haïti. Prenez rendez-vous en ligne.">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/site.js"></script>
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div>
+        <h1>
+          Retrouvez votre <span class="accent">mobilité</span>,<br>
+          retrouvez votre <span class="accent-blue">vie</span>
+        </h1>
+        <p class="lead">
+          HAITI REH-CARE vous accompagne : physiothérapie, massothérapie,
+          pose de prothèses et orthèses, et vente de matériel orthopédique.
+          Prenez rendez-vous en ligne en quelques minutes.
+        </p>
+        <div class="hero-actions">
+          <a href="rendez-vous.html" class="btn btn-teal btn-lg">
+            <i data-lucide="calendar-plus"></i> Prendre rendez-vous
+          </a>
+          <a href="soins.html" class="btn btn-outline btn-lg">
+            <i data-lucide="stethoscope"></i> Nos soins
+          </a>
+        </div>
+
+      </div>
+      <div class="hero-visual">
+        <div class="hero-card">
+          <div class="hero-card-row">
+            <div class="hero-card-icon teal"><i data-lucide="activity"></i></div>
+            <div><strong>Physiothérapie</strong><span>Rééducation & renforcement musculaire</span></div>
+          </div>
+          <div class="hero-card-row">
+            <div class="hero-card-icon blue"><i data-lucide="hand"></i></div>
+            <div><strong>Massothérapie</strong><span>Soulagement des douleurs & détente</span></div>
+          </div>
+          <div class="hero-card-row">
+            <div class="hero-card-icon teal"><i data-lucide="bone"></i></div>
+            <div><strong>Prothèses & Orthèses</strong><span>Conception, pose et suivi</span></div>
+          </div>
+          <div class="hero-card-row">
+            <div class="hero-card-icon blue"><i data-lucide="accessibility"></i></div>
+            <div><strong>Matériel orthopédique</strong><span>Vente & location d'équipements</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SERVICES APERÇU ============ -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow"><i data-lucide="sparkles"></i> Nos services</span>
+        <h2>Des soins adaptés à chaque besoin</h2>
+        <p>Une équipe de professionnels pour votre réadaptation, du premier rendez-vous jusqu'au suivi complet.</p>
+      </div>
+      <div class="grid grid-3" id="services-preview">
+        <div class="spinner"></div>
+      </div>
+      <div style="text-align: center; margin-top: 36px;">
+        <a href="soins.html" class="btn btn-outline">Voir tous les services <i data-lucide="arrow-right"></i></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ KIJAN SA MACHE ============ -->
+  <section class="section soft">
+    <div class="container">
+      <div class="grid grid-2" style="align-items: center; gap: 56px;">
+        <div>
+          <span class="eyebrow" style="color: var(--rc-blue); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;">
+            <i data-lucide="route"></i> Comment ça marche
+          </span>
+          <h2 style="font-size: 30px; font-weight: 800; margin: 10px 0 24px;">Prendre rendez-vous, c'est simple</h2>
+          <div class="steps">
+            <div class="step">
+              <h3>Remplissez le formulaire</h3>
+              <p>Choisissez le service, la date et l'heure qui vous conviennent.</p>
+            </div>
+            <div class="step">
+              <h3>Votre dossier patient est créé</h3>
+              <p>Un compte est associé à votre email pour suivre vos rendez-vous.</p>
+            </div>
+            <div class="step">
+              <h3>Le centre confirme</h3>
+              <p>Notre équipe confirme votre rendez-vous — visible dans votre espace patient.</p>
+            </div>
+            <div class="step">
+              <h3>Échangez avec votre médecin</h3>
+              <p>Depuis votre compte, communiquez avec le médecin référent.</p>
+            </div>
+          </div>
+        </div>
+        <div class="form-card" style="text-align: center;">
+          <div class="icon-box teal" style="margin: 0 auto 18px;">
+            <i data-lucide="user-plus"></i>
+          </div>
+          <h3 style="font-size: 20px; margin-bottom: 8px;">Votre espace patient</h3>
+          <p style="margin-bottom: 22px;">Consultez vos rendez-vous, échangez avec le médecin référent et suivez votre traitement.</p>
+          <a href="compte.html" class="btn btn-teal" style="width: 100%; justify-content: center;">
+            <i data-lucide="lock"></i> Accéder à mon compte
+          </a>
+          <p style="font-size: 12.5px; color: var(--rc-text-3); margin-top: 14px;">
+            Le compte se crée automatiquement lors de votre premier rendez-vous.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MATÉRIEL & ANNONCES ============ -->
+  <section class="section">
+    <div class="container">
+      <div class="grid grid-2">
+        <div class="card" style="display: flex; flex-direction: column;">
+          <div class="icon-box blue"><i data-lucide="accessibility"></i></div>
+          <h3 style="font-size: 20px;">Matériel orthopédique</h3>
+          <p style="flex: 1;">Fauteuils roulants, béquilles, attelles, ceintures lombaires… consultez le catalogue du centre.</p>
+          <a href="materiel.html" class="btn btn-outline" style="margin-top: 18px; align-self: flex-start;">
+            Voir le catalogue <i data-lucide="arrow-right"></i>
+          </a>
+        </div>
+        <div class="card" style="display: flex; flex-direction: column;">
+          <div class="icon-box teal"><i data-lucide="megaphone"></i></div>
+          <h3 style="font-size: 20px;">Annonces — achat & vente</h3>
+          <p style="flex: 1;">Achetez ou vendez des prothèses et du matériel orthopédique entre particuliers, modéré par le centre.</p>
+          <a href="annonces.html" class="btn btn-outline" style="margin-top: 18px; align-self: flex-start;">
+            Voir les annonces <i data-lucide="arrow-right"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="section" style="padding-top: 0;">
+    <div class="container">
+      <div class="cta-banner">
+        <div>
+          <h2>Prêt à commencer votre réadaptation ?</h2>
+          <p>Notre équipe vous répond rapidement. Prenez rendez-vous en ligne ou contactez-nous directement.</p>
+        </div>
+        <a href="rendez-vous.html" class="btn btn-lg"><i data-lucide="calendar-plus"></i> Prendre rendez-vous</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initSite('home');
+      try {
+        const cat = await Site.loadCatalog();
+        const services = (cat.services || []).slice(0, 6);
+        const icons = { 'Physiothérapie': 'activity', 'Massothérapie': 'hand', 'Orthèses': 'footprints', 'Prothèses': 'bone', 'Domicile': 'home' };
+        document.getElementById('services-preview').innerHTML = services.length ? services.map((s, i) => `
+          <div class="card">
+            <div class="icon-box ${i % 2 ? 'blue' : 'teal'}"><i data-lucide="${icons[s.category] || 'stethoscope'}"></i></div>
+            <h3>${Site.esc(s.name)}</h3>
+            <p>${Site.esc(s.description || '')}</p>
+            <div class="meta">
+              ${s.duration_min ? `<span><i data-lucide="clock"></i> ${s.duration_min} min</span>` : ''}
+              ${s.category ? `<span class="badge badge-teal">${Site.esc(s.category)}</span>` : ''}
+            </div>
+            <div class="price">${Site.money(s.price, s.devise)}</div>
+          </div>`).join('') :
+          '<p style="grid-column: 1/-1; text-align: center; color: var(--rc-text-3);">Catalogue en cours de préparation.</p>';
+        lucide.createIcons();
+      } catch (e) {
+        document.getElementById('services-preview').innerHTML =
+          '<p style="grid-column: 1/-1; text-align: center; color: var(--rc-text-3);">Impossible de charger les services.</p>';
+      }
+    });
+  </script>
+</body>
+</html>

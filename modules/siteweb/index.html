@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site Web - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
+  <style>
+    .sw-tabs { display: flex; gap: 4px; background: var(--clr-bg-soft, #F8FAFC); padding: 5px; border-radius: 12px; margin-bottom: 24px; max-width: 720px; }
+    .sw-tabs button { flex: 1; padding: 10px 12px; border: none; background: transparent; border-radius: 8px; font-size: 13.5px; font-weight: 600; color: var(--clr-text-secondary, #475569); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .sw-tabs button.active { background: var(--clr-card, #fff); color: var(--clr-primary, #2563EB); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .sw-tabs .lucide { width: 16px; height: 16px; }
+    .sw-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .sw-badge.amber { background: #FFFBEB; color: #B45309; }
+    .sw-badge.green { background: #ECFDF5; color: #047857; }
+    .sw-badge.red { background: #FEF2F2; color: #B91C1C; }
+    .sw-badge.gray { background: #F1F5F9; color: #475569; }
+    .sw-card { background: var(--clr-card, #fff); border: 1px solid var(--clr-border, #E2E8F0); border-radius: 12px; padding: 20px; margin-bottom: 14px; }
+    .sw-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .sw-card h4 { margin: 0 0 4px; font-size: 15px; }
+    .sw-card .sub { font-size: 13px; color: var(--clr-text-muted, #94A3B8); }
+    .sw-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sw-stat { background: var(--clr-card, #fff); border: 1px solid var(--clr-border, #E2E8F0); border-radius: 12px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; }
+    .sw-stat .ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; }
+    .sw-stat strong { display: block; font-size: 22px; }
+    .sw-stat span { font-size: 12.5px; color: var(--clr-text-muted, #94A3B8); }
+    .sw-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .sw-grid { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()"><i data-lucide="menu"></i></button>
+          <h1 class="topbar-title">Site Web — Gestion</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-actions">
+            <button class="topbar-btn"><i data-lucide="bell"></i><span class="notification-badge"></span></button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+
+        <div class="sw-grid" id="stats-grid"></div>
+
+        <div class="sw-tabs">
+          <button id="tab-rdv" class="active" onclick="swTab('rdv')"><i data-lucide="calendar-clock"></i> RDV en ligne <span id="count-rdv"></span></button>
+          <button id="tab-annonces" onclick="swTab('annonces')"><i data-lucide="megaphone"></i> Annonces <span id="count-annonces"></span></button>
+          <button id="tab-messages" onclick="swTab('messages')"><i data-lucide="inbox"></i> Messages patients <span id="count-messages"></span></button>
+          <button id="tab-chat" onclick="swTab('chat')"><i data-lucide="message-circle"></i> Chat patients</button>
+        </div>
+
+        <div id="pane-rdv"></div>
+        <div id="pane-annonces" class="hidden"></div>
+        <div id="pane-messages" class="hidden"></div>
+        <div id="pane-chat" class="hidden"></div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let _rdv = [], _annonces = [], _siteMsgs = [], _conversations = [];
+
+    function swTab(t) {
+      ['rdv', 'annonces', 'messages', 'chat'].forEach(k => {
+        document.getElementById('tab-' + k).classList.toggle('active', k === t);
+        document.getElementById('pane-' + k).classList.toggle('hidden', k !== t);
+      });
+      lucide.createIcons();
+    }
+
+    const RDV_BADGE = {
+      en_attente: ['amber', 'En attente'], confirme: ['green', 'Confirmé'],
+      annule: ['red', 'Annulé'], termine: ['gray', 'Terminé'], absent: ['red', 'Absent']
+    };
+    const AN_BADGE = {
+      en_attente: ['amber', 'En attente'], publie: ['green', 'Publié'],
+      rejete: ['red', 'Rejeté'], vendu: ['gray', 'Vendu']
+    };
+
+    function fmtDate(d) { return d ? new Date(d).toLocaleDateString('fr-FR') : ''; }
+
+    async function loadAll() {
+      const [rdv, ann, msgs] = await Promise.all([
+        db.from('erp_rdv').select('*, erp_services(name), erp_patients(id, nom, prenom)').order('created_at', { ascending: false }).limit(100),
+        db.from('erp_annonces').select('*').order('created_at', { ascending: false }).limit(100),
+        db.from('erp_site_messages').select('*').order('created_at', { ascending: false }).limit(100)
+      ]);
+      _rdv = rdv.data || [];
+      _annonces = ann.data || [];
+      _siteMsgs = msgs.data || [];
+      renderStats(); renderRdv(); renderAnnonces(); renderSiteMessages(); loadChatPatients();
+      lucide.createIcons();
+    }
+
+    function renderStats() {
+      const pendingRdv = _rdv.filter(r => r.statut === 'en_attente').length;
+      const pendingAnn = _annonces.filter(a => a.statut === 'en_attente').length;
+      const unreadMsg = _siteMsgs.filter(m => !m.is_read).length;
+      document.getElementById('stats-grid').innerHTML = `
+        <div class="sw-stat"><div class="ic" style="background:#EFF6FF;color:#2563EB;"><i data-lucide="calendar-clock"></i></div><div><strong>${pendingRdv}</strong><span>RDV en attente</span></div></div>
+        <div class="sw-stat"><div class="ic" style="background:#F0FDFA;color:#0D9488;"><i data-lucide="megaphone"></i></div><div><strong>${pendingAnn}</strong><span>Annonces à valider</span></div></div>
+        <div class="sw-stat"><div class="ic" style="background:#FFFBEB;color:#D97706;"><i data-lucide="inbox"></i></div><div><strong>${unreadMsg}</strong><span>Messages non lus</span></div></div>
+        <div class="sw-stat"><div class="ic" style="background:#F1F5F9;color:#475569;"><i data-lucide="users"></i></div><div><strong>${_rdv.length}</strong><span>Demandes totales</span></div></div>`;
+      document.getElementById('count-rdv').textContent = pendingRdv ? `(${pendingRdv})` : '';
+      document.getElementById('count-annonces').textContent = pendingAnn ? `(${pendingAnn})` : '';
+      document.getElementById('count-messages').textContent = unreadMsg ? `(${unreadMsg})` : '';
+    }
+
+    // ---------- RDV ----------
+    function renderRdv() {
+      const el = document.getElementById('pane-rdv');
+      if (!_rdv.length) {
+        el.innerHTML = '<div class="sw-card" style="text-align:center;color:var(--clr-text-muted);">Aucune demande de rendez-vous.</div>';
+        return;
+      }
+      el.innerHTML = _rdv.map(r => {
+        const [cls, label] = RDV_BADGE[r.statut] || ['gray', r.statut];
+        return `
+        <div class="sw-card">
+          <div class="sw-card-head">
+            <div>
+              <h4>${r.patient_prenom || ''} ${r.patient_nom}</h4>
+              <div class="sub">
+                ${r.erp_services?.name || 'Service'} — ${fmtDate(r.date_rdv)}${r.heure_rdv ? ' à ' + String(r.heure_rdv).slice(0,5) : ''}
+                ${r.patient_phone ? ' · ' + r.patient_phone : ''}${r.patient_email ? ' · ' + r.patient_email : ''}
+                ${r.erp_patients ? ' · <em>dossier lié</em>' : ''}
+              </div>
+              ${r.motif ? `<div class="sub" style="margin-top:6px;">« ${r.motif} »</div>` : ''}
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="sw-badge ${cls}">${label}</span>
+              <div class="sw-actions">
+                ${r.statut === 'en_attente' ? `
+                  <button class="btn btn-primary" style="padding:6px 12px;font-size:12.5px;" onclick="setRdv('${r.id}','confirme')"><i data-lucide="check"></i> Confirmer</button>
+                  <button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="setRdv('${r.id}','annule')"><i data-lucide="x"></i> Refuser</button>` : ''}
+                ${r.statut === 'confirme' ? `<button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="setRdv('${r.id}','termine')"><i data-lucide="check-check"></i> Terminé</button>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function setRdv(id, statut) {
+      const { error } = await db.from('erp_rdv').update({ statut }).eq('id', id);
+      if (error) { alert('Erreur: ' + error.message); return; }
+      logActivity('RDV ' + statut, 'Site Web', `Rendez-vous ${id} → ${statut}`);
+      await loadAll();
+    }
+
+    // ---------- Annonces ----------
+    function renderAnnonces() {
+      const el = document.getElementById('pane-annonces');
+      if (!_annonces.length) {
+        el.innerHTML = '<div class="sw-card" style="text-align:center;color:var(--clr-text-muted);">Aucune annonce.</div>';
+        return;
+      }
+      const TYPE = { vente: 'Vente', achat: 'Recherche', don: 'Don' };
+      el.innerHTML = _annonces.map(a => {
+        const [cls, label] = AN_BADGE[a.statut] || ['gray', a.statut];
+        return `
+        <div class="sw-card">
+          <div class="sw-card-head">
+            <div>
+              <h4>${a.titre} <span class="sw-badge gray" style="margin-left:6px;">${TYPE[a.type] || a.type}</span></h4>
+              <div class="sub">
+                ${a.prix ? Number(a.prix).toLocaleString('fr-FR') + ' ' + (a.devise || 'HTG') : 'Gratuit'}
+                · ${a.contact_nom || 'Anonyme'}${a.contact_phone ? ' · ' + a.contact_phone : ''}
+                · ${fmtDate(a.created_at)}
+              </div>
+              ${a.description ? `<div class="sub" style="margin-top:6px;">« ${a.description} »</div>` : ''}
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="sw-badge ${cls}">${label}</span>
+              <div class="sw-actions">
+                ${a.statut === 'en_attente' ? `
+                  <button class="btn btn-primary" style="padding:6px 12px;font-size:12.5px;" onclick="setAnnonce('${a.id}','publie')"><i data-lucide="check"></i> Publier</button>
+                  <button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="setAnnonce('${a.id}','rejete')"><i data-lucide="x"></i> Rejeter</button>` : ''}
+                ${a.statut === 'publie' ? `<button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="setAnnonce('${a.id}','rejete')"><i data-lucide="eye-off"></i> Dépublier</button>` : ''}
+                ${a.statut === 'rejete' ? `<button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="setAnnonce('${a.id}','publie')"><i data-lucide="check"></i> Publier</button>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function setAnnonce(id, statut) {
+      const { error } = await db.from('erp_annonces').update({ statut }).eq('id', id);
+      if (error) { alert('Erreur: ' + error.message); return; }
+      logActivity('Annonce ' + statut, 'Site Web', `Annonce ${id} → ${statut}`);
+      await loadAll();
+    }
+
+    // ---------- Messages site ----------
+    function renderSiteMessages() {
+      const el = document.getElementById('pane-messages');
+      if (!_siteMsgs.length) {
+        el.innerHTML = '<div class="sw-card" style="text-align:center;color:var(--clr-text-muted);">Aucun message.</div>';
+        return;
+      }
+      el.innerHTML = _siteMsgs.map(m => `
+        <div class="sw-card" style="${m.is_read ? '' : 'border-left:3px solid var(--clr-primary, #2563EB);'}">
+          <div class="sw-card-head">
+            <div>
+              <h4>${m.nom} ${m.sujet ? `<span class="sw-badge gray" style="margin-left:6px;">${m.sujet}</span>` : ''}</h4>
+              <div class="sub">${m.email || ''}${m.phone ? ' · ' + m.phone : ''} · ${fmtDate(m.created_at)}</div>
+              <div style="margin-top:8px; font-size:14px;">${m.message}</div>
+            </div>
+            <div class="sw-actions">
+              ${m.email ? `<a class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" href="mailto:${m.email}"><i data-lucide="reply"></i> Répondre</a>` : ''}
+              ${!m.is_read ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="markSiteMsgRead('${m.id}')"><i data-lucide="check"></i> Lu</button>` : ''}
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    async function markSiteMsgRead(id) {
+      await db.from('erp_site_messages').update({ is_read: true }).eq('id', id);
+      await loadAll();
+    }
+
+    // ---------- Chat patients (erp_messages avec les comptes patients) ----------
+    async function loadChatPatients() {
+      const el = document.getElementById('pane-chat');
+      // Patients qui ont échangé des messages avec le staff
+      const { data: msgs } = await db.from('erp_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      const { data: patients } = await db.from('erp_patients')
+        .select('id, nom, prenom, user_id')
+        .not('user_id', 'is', null);
+      const patientByUser = {};
+      (patients || []).forEach(p => patientByUser[p.user_id] = p);
+      const staffIds = new Set((await db.from('erp_users').select('id')).data?.map(u => u.id) || []);
+
+      // Regroupe par patient (interlocuteur non-staff)
+      const threads = {};
+      (msgs || []).forEach(m => {
+        const other = staffIds.has(m.sender_id) ? m.recipient_id : m.sender_id;
+        if (!other || staffIds.has(other)) return;
+        if (!threads[other]) threads[other] = { user_id: other, last: m, count: 0 };
+        threads[other].count++;
+      });
+      _conversations = Object.values(threads);
+
+      el.innerHTML = _conversations.length ? `
+        <div class="sw-card">
+          <h4 style="margin-bottom:12px;">Conversations avec les patients</h4>
+          ${_conversations.map(c => {
+            const p = patientByUser[c.user_id];
+            const name = p ? `${p.prenom || ''} ${p.nom}`.trim() : 'Patient';
+            return `
+            <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--clr-border,#E2E8F0);">
+              <i data-lucide="user" style="width:18px;height:18px;color:var(--clr-primary,#2563EB);"></i>
+              <div style="flex:1;"><strong>${name}</strong><div class="sub">${(c.last.content || '').slice(0, 60)}… · ${fmtDate(c.last.created_at)}</div></div>
+              <a class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" href="/modules/communication/messages.html?to=${c.user_id}"><i data-lucide="message-circle"></i> Ouvrir</a>
+            </div>`;
+          }).join('')}
+        </div>` :
+        '<div class="sw-card" style="text-align:center;color:var(--clr-text-muted);">Aucune conversation patient pour le moment.</div>';
+      lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        loadAll();
+        // Onglet via hash (#annonces depuis la sidebar)
+        if (location.hash === '#annonces') swTab('annonces');
+      });
+    });
+  </script>
+</body>
+</html>

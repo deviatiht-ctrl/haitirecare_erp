@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Employés - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Employés - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
-  <script src="/assets/js/excel.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
+  <script src="/assets/js/excel.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -88,13 +88,19 @@
 
     async function loadEmployees() {
       try {
+        // erp_employes pa gen FK dirèk sou erp_users (tou de refere
+        // auth.users) → join PostgREST la echwe. 2 requete separe + fusion.
         const { data: employees } = await db
           .from('erp_users')
-          .select('*, erp_postes(*), erp_employes(*)')
+          .select('*, erp_postes(*)')
           .eq('is_active', true)
           .order('last_name');
-        
-        allEmployees = employees || [];
+
+        const { data: fiches } = await db.from('erp_employes').select('*');
+        const ficheMap = {};
+        (fiches || []).forEach(f => { ficheMap[f.id] = f; });
+
+        allEmployees = (employees || []).map(e => ({ ...e, erp_employes: ficheMap[e.id] || null }));
         renderEmployeesGrid(allEmployees);
       } catch (error) {
         console.error('Load employees error:', error);

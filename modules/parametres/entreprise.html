@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Paramètres Entreprise - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Paramètres Entreprise - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -68,6 +68,20 @@
             <h3 class="card-title">Informations de l'entreprise</h3>
           </div>
           <form id="company-form">
+            <div class="form-group">
+              <label class="form-label">Logo du centre (ERP + site public)</label>
+              <div style="display: flex; align-items: center; gap: var(--space-4, 16px);">
+                <img id="logo-preview" src="/assets/img/logohaitirecare.png" alt="Logo"
+                     style="width: 64px; height: 64px; border-radius: 12px; object-fit: cover; border: 1px solid var(--clr-border, #E2E8F0); background: #fff;">
+                <div>
+                  <input type="file" id="logo-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display: none;">
+                  <button type="button" class="btn btn-secondary" onclick="document.getElementById('logo-input').click()">
+                    <i data-lucide="upload"></i> Choisir un logo
+                  </button>
+                  <p style="margin: 6px 0 0; font-size: 12px; color: var(--clr-text-muted, #94A3B8);">PNG, JPG, SVG ou WebP — 2 Mo max</p>
+                </div>
+              </div>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Nom de l'entreprise</label>
@@ -130,7 +144,7 @@
   <script>
     async function loadCompanySettings() {
       try {
-        const { data: settings } = await db.from('erp_settings').select('*').single();
+        const { data: settings } = await db.from('erp_settings').select('*').maybeSingle();
         
         if (settings) {
           document.getElementById('company-name').value = settings.company_name || '';
@@ -143,11 +157,42 @@
           document.getElementById('company-rc').value = settings.company_rc || '';
           document.getElementById('company-ifu').value = settings.company_ifu || '';
           document.getElementById('company-currency').value = settings.default_currency || 'HTG';
+          if (settings.logo_url) {
+            document.getElementById('logo-preview').src = settings.logo_url;
+          }
         }
       } catch (error) {
         console.error('Load settings error:', error);
       }
     }
+
+    let _pendingLogoUrl = null;
+
+    document.getElementById('logo-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Le logo ne doit pas dépasser 2 Mo');
+        e.target.value = '';
+        return;
+      }
+
+      try {
+        const ext = file.name.split('.').pop().toLowerCase() || 'png';
+        const path = `logo-${Date.now()}.${ext}`;
+        const { error: upErr } = await db.storage
+          .from('erp-settings')
+          .upload(path, file, { upsert: true, contentType: file.type });
+        if (upErr) throw upErr;
+
+        const { data } = db.storage.from('erp-settings').getPublicUrl(path);
+        _pendingLogoUrl = data.publicUrl;
+        document.getElementById('logo-preview').src = data.publicUrl;
+      } catch (err) {
+        console.error('Logo upload error:', err);
+        alert('Erreur lors du téléversement du logo: ' + err.message);
+      }
+    });
 
     async function saveCompanySettings() {
       const settings = {
@@ -162,9 +207,12 @@
         company_ifu: document.getElementById('company-ifu').value,
         default_currency: document.getElementById('company-currency').value
       };
+      if (_pendingLogoUrl) {
+        settings.logo_url = _pendingLogoUrl;
+      }
 
       try {
-        const { data: existing } = await db.from('erp_settings').select('id').single();
+        const { data: existing } = await db.from('erp_settings').select('id').maybeSingle();
         
         if (existing) {
           await db.from('erp_settings').update(settings).eq('id', existing.id);

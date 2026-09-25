@@ -13,26 +13,15 @@ CREATE TABLE erp_enterprise_types (
   created_at timestamptz DEFAULT now()
 );
 
--- Insert enterprise types
+-- Insert enterprise types — HAITI REH-CARE (physiothérapie)
 INSERT INTO erp_enterprise_types (code, name, description, icon, features) VALUES
-('hospital', 'Hôpital/Clinique', 'Établissement de santé', 'stethoscope', 
- '{"modules": ["patients", "rdv", "ordonnances", "facturation_medical", "pharmacie"], "interface": "medical"}'),
-('boutique', 'Boutique/Commerce', 'Commerce de détail', 'shopping-bag',
- '{"modules": ["ventes", "stock", "clients", "caisse", "rapports"], "interface": "retail"}'),
-('restaurant', 'Restaurant/Café', 'Restauration', 'utensils',
- '{"modules": ["commandes", "menu", "stock", "reservations", "caisse"], "interface": "food"}'),
-('construction', 'Construction/BTP', 'Bâtiment et travaux publics', 'hard-hat',
- '{"modules": ["projets", "chantiers", "employes", "materiel", "facturation"], "interface": "construction"}'),
-('education', 'École/Formation', 'Éducation et formation', 'graduation-cap',
- '{"modules": ["etudiants", "classes", "emploi_du_temps", "notes", "facturation"], "interface": "education"}'),
-('logistics', 'Logistique/Transport', 'Transport et logistique', 'truck',
- '{"modules": ["flotte", "livraisons", "chauffeurs", "itineraire", "facturation"], "interface": "logistics"}'),
-('manufacturing', 'Industrie/Production', 'Production industrielle', 'factory',
- '{"modules": ["production", "stock", "employes", "maintenance", "qualite"], "interface": "manufacturing"}'),
-('services', 'Services/Consulting', 'Services professionnels', 'briefcase',
- '{"modules": ["clients", "projets", "employes", "facturation", "rapports"], "interface": "services"}'),
+('physiotherapy', 'Centre de Physiothérapie',
+ 'Physiothérapie, massothérapie, orthèses, prothèses et matériel orthopédique',
+ 'activity',
+ '{"modules": ["patients","rdv","seances","services","protheses","ortheses","materiel_orthopedique","stock","catalogue","ventes","caisse","facturation","finances","employes","presences","taches","messages","rapports","annonces","siteweb","users","parametres"], "interface": "medical"}'),
 ('default', 'Entreprise Générale', 'Type d''entreprise par défaut', 'building',
- '{"modules": ["clients", "stock", "employes", "finances", "rapports"], "interface": "default"}');
+ '{"modules": ["clients", "stock", "employes", "finances", "rapports"], "interface": "default"}')
+ON CONFLICT (code) DO NOTHING;
 
 -- Enterprise registrations
 CREATE TABLE erp_enterprise_registrations (
@@ -60,12 +49,6 @@ CREATE TABLE erp_enterprise_registrations (
   
   -- Registration status
   statut text DEFAULT 'en_attente' CHECK (statut IN ('en_attente', 'en_revision', 'approuve', 'refuse', 'active', 'suspendu')),
-  
-  -- CVisual verification
-  cvisual_verified boolean DEFAULT false,
-  cvisual_verified_by uuid REFERENCES auth.users(id),
-  cvisual_verified_at timestamptz,
-  cvisual_notes text,
   
   -- Subscription/Features
   subscription_plan text DEFAULT 'basic' CHECK (subscription_plan IN ('basic', 'standard', 'premium')),
@@ -95,31 +78,6 @@ CREATE TABLE erp_user_enterprises (
   UNIQUE(user_id, enterprise_id)
 );
 
--- CVisual admin access
-CREATE TABLE erp_cvisual_admins (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id uuid REFERENCES auth.users(id) UNIQUE,
-  admin_level text DEFAULT 'standard' CHECK (admin_level IN ('standard', 'senior', 'super')),
-  permissions jsonb DEFAULT '{}',
-  can_verify_enterprises boolean DEFAULT true,
-  can_unlock_features boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
-);
-
--- Feature unlock requests
-CREATE TABLE erp_feature_requests (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  enterprise_id uuid REFERENCES erp_enterprise_registrations(id),
-  feature_code text NOT NULL,
-  request_type text DEFAULT 'unlock' CHECK (request_type IN ('unlock', 'upgrade', 'custom')),
-  reason text,
-  statut text DEFAULT 'en_attente' CHECK (statut IN ('en_attente', 'approuve', 'refuse')),
-  processed_by uuid REFERENCES auth.users(id),
-  processed_at timestamptz,
-  notes text,
-  created_at timestamptz DEFAULT now()
-);
-
 -- Auto update trigger for enterprise registrations
 CREATE TRIGGER trg_enterprise_registrations BEFORE UPDATE ON erp_enterprise_registrations
   FOR EACH ROW EXECUTE FUNCTION erp_update_ts();
@@ -128,49 +86,24 @@ CREATE TRIGGER trg_enterprise_registrations BEFORE UPDATE ON erp_enterprise_regi
 ALTER TABLE erp_enterprise_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE erp_enterprise_registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE erp_user_enterprises ENABLE ROW LEVEL SECURITY;
-ALTER TABLE erp_cvisual_admins ENABLE ROW LEVEL SECURITY;
-ALTER TABLE erp_feature_requests ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
 -- Enterprise types: everyone reads
 CREATE POLICY "enterprise_types_read" ON erp_enterprise_types FOR SELECT USING (true);
 
--- Enterprise registrations: 
+-- Enterprise registrations:
 -- - Public can register (INSERT)
--- - CVisual admins can see all
 -- - Enterprises can see their own
 CREATE POLICY "enterprise_registrations_insert" ON erp_enterprise_registrations FOR INSERT WITH CHECK (true);
-CREATE POLICY "enterprise_registrations_cvisual" ON erp_enterprise_registrations FOR ALL
-  USING (EXISTS (SELECT 1 FROM erp_cvisual_admins WHERE user_id = auth.uid()));
 CREATE POLICY "enterprise_registrations_own" ON erp_enterprise_registrations FOR SELECT
   USING (EXISTS (SELECT 1 FROM erp_user_enterprises WHERE user_id = auth.uid() AND enterprise_id = erp_enterprise_registrations.id));
 
--- User-enterprises: users can see their own enterprises
+-- User-enterprises: users can see their own, PDG/Direction manage all
 CREATE POLICY "user_enterprises_own" ON erp_user_enterprises FOR ALL
   USING (user_id = auth.uid());
-
--- CVisual admins: only CVisual admins can see
-CREATE POLICY "cvisual_admins_own" ON erp_cvisual_admins FOR SELECT
-  USING (user_id = auth.uid());
-CREATE POLICY "cvisual_admins_insert" ON erp_cvisual_admins FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM erp_cvisual_admins WHERE user_id = auth.uid() AND admin_level = 'super'));
-
--- Feature requests: enterprises can create, CVisual can manage
-CREATE POLICY "feature_requests_create" ON erp_feature_requests FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM erp_user_enterprises WHERE user_id = auth.uid() AND enterprise_id = erp_feature_requests.enterprise_id));
-CREATE POLICY "feature_requests_cvisual" ON erp_feature_requests FOR ALL
-  USING (EXISTS (SELECT 1 FROM erp_cvisual_admins WHERE user_id = auth.uid()));
-CREATE POLICY "feature_requests_own" ON erp_feature_requests FOR SELECT
-  USING (EXISTS (SELECT 1 FROM erp_user_enterprises WHERE user_id = auth.uid() AND enterprise_id = erp_feature_requests.enterprise_id));
-
--- Helper function to check if user is CVisual admin
-CREATE OR REPLACE FUNCTION erp_is_cvisual_admin()
-RETURNS boolean AS $$
-BEGIN
-  RETURN EXISTS (SELECT 1 FROM erp_cvisual_admins WHERE user_id = auth.uid());
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE POLICY "user_enterprises_manage" ON erp_user_enterprises FOR ALL
+  USING (erp_can_manage_users());
 
 -- Helper function to get user's enterprise
 CREATE OR REPLACE FUNCTION erp_get_user_enterprise()

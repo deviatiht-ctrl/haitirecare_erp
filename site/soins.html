@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soins & Services — HAITI REH-CARE</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/site.js"></script>
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <section class="page-hero">
+    <h1>Soins & Services</h1>
+    <p>Physiothérapie, massothérapie, prothèses, orthèses et services à domicile — avec des tarifs transparents.</p>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div id="services-filters" style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:36px;"></div>
+      <div class="grid grid-3" id="services-grid"><div class="spinner"></div></div>
+      <div style="text-align:center; margin-top:44px;">
+        <a href="rendez-vous.html" class="btn btn-teal btn-lg"><i data-lucide="calendar-plus"></i> Prendre rendez-vous</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script>
+    let _services = [];
+    let _filter = 'all';
+
+    function iconFor(cat) {
+      const m = { 'Physiothérapie': 'activity', 'Massothérapie': 'hand', 'Orthèses': 'footprints', 'Prothèses': 'bone', 'Domicile': 'home' };
+      return m[cat] || 'stethoscope';
+    }
+
+    function render() {
+      const cats = [...new Set(_services.map(s => s.category).filter(Boolean))];
+      const f = document.getElementById('services-filters');
+      f.innerHTML = ['all', ...cats].map(c =>
+        `<button class="btn btn-sm ${c === _filter ? 'btn-teal' : 'btn-ghost'}" onclick="setFilter('${c}')">${c === 'all' ? 'Tous' : Site.esc(c)}</button>`
+      ).join('');
+
+      const list = _filter === 'all' ? _services : _services.filter(s => s.category === _filter);
+      document.getElementById('services-grid').innerHTML = list.length ? list.map((s, i) => `
+        <div class="card">
+          <div class="icon-box ${i % 2 ? 'blue' : 'teal'}"><i data-lucide="${iconFor(s.category)}"></i></div>
+          <h3>${Site.esc(s.name)}</h3>
+          <p>${Site.esc(s.description || '')}</p>
+          <div class="meta">
+            ${s.duration_min ? `<span><i data-lucide="clock"></i> ${s.duration_min} min</span>` : ''}
+            ${s.category ? `<span class="badge badge-teal">${Site.esc(s.category)}</span>` : ''}
+          </div>
+          <div class="price">${Site.money(s.price, s.devise)}</div>
+          <a href="rendez-vous.html?service=${s.id}" class="btn btn-outline btn-sm" style="margin-top:14px;">
+            <i data-lucide="calendar-plus"></i> Réserver
+          </a>
+        </div>`).join('') :
+        '<div class="empty-state" style="grid-column:1/-1;"><i data-lucide="clipboard-x"></i><p>Aucun service dans cette catégorie.</p></div>';
+      lucide.createIcons();
+    }
+
+    function setFilter(c) { _filter = c; render(); }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initSite('soins');
+      const cat = await Site.loadCatalog();
+      _services = cat.services || [];
+      render();
+    });
+  </script>
+</body>
+</html>

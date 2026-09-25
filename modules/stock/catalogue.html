@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catalogue Public & Produits - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
+  <style>
+    .share-banner {
+      background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+      color: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.25);
+    }
+    .share-banner-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .share-banner-head i {
+      width: 28px;
+      height: 28px;
+    }
+    .share-banner-head h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0;
+      color: #ffffff;
+    }
+    .share-banner p {
+      margin: 0 0 16px;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    .share-input-group {
+      display: flex;
+      gap: 10px;
+      max-width: 640px;
+      flex-wrap: wrap;
+    }
+    .share-input-group input {
+      flex: 1;
+      min-width: 260px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      font-size: 14px;
+      font-family: monospace;
+      outline: none;
+    }
+    .share-input-group input::selection {
+      background: rgba(255, 255, 255, 0.4);
+    }
+    .btn-share-copy {
+      background: #ffffff;
+      color: #1E40AF;
+      font-weight: 700;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-share-copy:hover {
+      background: #F3F4F6;
+      transform: translateY(-1px);
+    }
+    .btn-share-preview {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-share-preview:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .catalog-card {
+      background: var(--clr-card, #ffffff);
+      border: 1px solid var(--clr-border, #E2E8F0);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .catalog-card:hover {
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+      transform: translateY(-2px);
+    }
+    .catalog-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .catalog-card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #EFF6FF;
+      color: #2563EB;
+      display: grid;
+      place-items: center;
+    }
+    .catalog-card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--clr-text, #1E293B);
+      margin: 0 0 6px;
+    }
+    .catalog-card-desc {
+      font-size: 13px;
+      color: var(--clr-text-muted, #64748B);
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+    .catalog-card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px dashed var(--clr-border, #E2E8F0);
+    }
+    .catalog-card-price {
+      font-size: 17px;
+      font-weight: 800;
+      color: #10B981;
+    }
+    .toggle-public {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toggle-public input {
+      cursor: pointer;
+    }
+    .toast-copy {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #10B981;
+      color: #ffffff;
+      padding: 14px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+    }
+    .toast-copy.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"></div>
+          <div class="sidebar-user-role"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item" onclick="logout()">
+          <i data-lucide="log-out"></i>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="topbar-title">Catalogue Public Client</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input type="text" id="catalog-search" placeholder="Rechercher dans le catalogue...">
+          </div>
+          <div class="topbar-actions">
+            <button class="topbar-btn">
+              <i data-lucide="bell"></i>
+              <span class="notification-badge"></span>
+            </button>
+            <div class="topbar-user">
+              <div class="topbar-user-avatar"></div>
+              <span class="topbar-user-name"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+
+        <!-- Banner Partage de Lien Client -->
+        <div class="share-banner">
+          <div class="share-banner-head">
+            <i data-lucide="share-2"></i>
+            <h2>Lien du Catalogue Public à Envoyer aux Clients</h2>
+          </div>
+          <p>Utilisez ce lien public pour permettre à vos clients et patients de consulter le catalogue des équipements et soins directement depuis leur téléphone ou ordinateur.</p>
+          <div class="share-input-group">
+            <input type="text" id="public-link-input" readonly>
+            <button class="btn-share-copy" onclick="copyPublicLink()">
+              <i data-lucide="copy"></i> Copier le lien client
+            </button>
+            <a href="/site/materiel.html" target="_blank" class="btn-share-preview">
+              <i data-lucide="external-link"></i> Voir la page client
+            </a>
+          </div>
+        </div>
+
+        <div class="filters-bar" style="margin-bottom: 24px;">
+          <input type="text" id="filter-cat" class="form-input" placeholder="Filtrer par catégorie">
+          <select id="filter-public" class="form-select form-input">
+            <option value="">Tous les produits</option>
+            <option value="true" selected>Publics (visibles clients)</option>
+            <option value="false">Privés (non visibles)</option>
+          </select>
+          <button class="btn btn-secondary" onclick="applyCatalogFilters()">Filtrer</button>
+          <button class="btn btn-ghost" onclick="resetCatalogFilters()">Réinitialiser</button>
+        </div>
+
+        <div class="catalog-grid" id="catalog-grid">
+          <div style="grid-column: 1/-1; text-align: center; padding: 40px;">
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div id="toast-copy" class="toast-copy">
+    <i data-lucide="check-circle"></i>
+    <span>Lien copié dans le presse-papier ! Envoyez-le à vos clients.</span>
+  </div>
+
+  <script>
+    let allCatalogProducts = [];
+
+    async function loadCatalogData() {
+      try {
+        const { data } = await db
+          .from('erp_produits')
+          .select('*')
+          .eq('is_active', true)
+          .order('designation');
+
+        allCatalogProducts = data || [];
+        renderCatalogGrid(allCatalogProducts);
+      } catch (err) {
+        console.error('Load catalog error:', err);
+      }
+    }
+
+    function renderCatalogGrid(products) {
+      const container = document.getElementById('catalog-grid');
+      if (!products.length) {
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--clr-text-muted); padding: 40px;">Aucun article dans le catalogue.</div>';
+        return;
+      }
+
+      container.innerHTML = products.map(p => `
+        <div class="catalog-card">
+          <div>
+            <div class="catalog-card-header">
+              <div class="catalog-card-icon">
+                <i data-lucide="package"></i>
+              </div>
+              <label class="toggle-public">
+                <input type="checkbox" ${p.is_public !== false ? 'checked' : ''} onchange="togglePublicStatus('${p.id}', this.checked)">
+                Visible public
+              </label>
+            </div>
+            <h3 class="catalog-card-title">${p.designation}</h3>
+            <div class="catalog-card-desc">${p.description || 'Équipement orthopédique et matériel de réadaptation.'}</div>
+          </div>
+          <div class="catalog-card-meta">
+            <span class="badge badge-blue">${p.categorie || 'Matériel'}</span>
+            <span class="catalog-card-price">${new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(p.prix_vente || 0)}</span>
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    async function togglePublicStatus(productId, isPublic) {
+      try {
+        await db.from('erp_produits').update({ is_public: isPublic }).eq('id', productId);
+        const p = allCatalogProducts.find(x => x.id === productId);
+        if (p) p.is_public = isPublic;
+      } catch (err) {
+        console.error('Toggle public status error:', err);
+      }
+    }
+
+    function copyPublicLink() {
+      const input = document.getElementById('public-link-input');
+      input.select();
+      navigator.clipboard.writeText(input.value);
+
+      const toast = document.getElementById('toast-copy');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    function applyCatalogFilters() {
+      const q = document.getElementById('catalog-search').value.toLowerCase();
+      const cat = document.getElementById('filter-cat').value.toLowerCase();
+      const pub = document.getElementById('filter-public').value;
+
+      let filtered = allCatalogProducts;
+
+      if (q) {
+        filtered = filtered.filter(p => p.designation?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q));
+      }
+      if (cat) {
+        filtered = filtered.filter(p => p.categorie?.toLowerCase().includes(cat));
+      }
+      if (pub !== '') {
+        const isPub = pub === 'true';
+        filtered = filtered.filter(p => (p.is_public !== false) === isPub);
+      }
+
+      renderCatalogGrid(filtered);
+    }
+
+    function resetCatalogFilters() {
+      document.getElementById('catalog-search').value = '';
+      document.getElementById('filter-cat').value = '';
+      document.getElementById('filter-public').value = '';
+      renderCatalogGrid(allCatalogProducts);
+    }
+
+    document.getElementById('catalog-search').addEventListener('input', applyCatalogFilters);
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initApp().then(() => {
+        const publicUrl = `${window.location.origin}/site/materiel.html`;
+        document.getElementById('public-link-input').value = publicUrl;
+        loadCatalogData();
+      });
+    });
+  </script>
+</body>
+</html>

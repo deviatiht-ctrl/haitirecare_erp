@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matériel Orthopédique — HAITI REH-CARE</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/site.js"></script>
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <section class="page-hero">
+    <h1>Matériel orthopédique</h1>
+    <p>Équipements vendus directement par le centre : fauteuils roulants, béquilles, attelles, orthèses, prothèses et plus.</p>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div style="max-width: 440px; margin: 0 auto 36px; position: relative;">
+        <i data-lucide="search" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--rc-text-3);"></i>
+        <input type="text" id="search" placeholder="Rechercher un équipement…"
+               style="width:100%; padding:12px 14px 12px 42px; border:1.5px solid var(--rc-border); border-radius:12px; font-size:15px; outline:none;">
+      </div>
+      <div class="grid grid-3" id="products-grid"><div class="spinner"></div></div>
+
+      <div class="alert alert-info" style="max-width:640px; margin:40px auto 0;">
+        <i data-lucide="info"></i>
+        <span>Pour acheter un équipement, contactez le centre ou prenez rendez-vous. Pour vendre votre propre matériel, consultez les <a href="annonces.html">annonces</a>.</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script>
+    let _products = [];
+
+    function render(list) {
+      document.getElementById('products-grid').innerHTML = list.length ? list.map((p, i) => `
+        <div class="card">
+          ${p.image_url
+            ? `<img src="${Site.esc(p.image_url)}" alt="${Site.esc(p.designation)}" style="width:100%; height:160px; object-fit:cover; border-radius:10px; margin-bottom:16px;">`
+            : `<div class="icon-box ${i % 2 ? 'blue' : 'teal'}"><i data-lucide="package"></i></div>`}
+          <h3>${Site.esc(p.designation)}</h3>
+          ${p.description ? `<p>${Site.esc(p.description)}</p>` : ''}
+          <div class="meta">
+            ${p.categorie ? `<span class="badge badge-blue">${Site.esc(p.categorie)}</span>` : ''}
+            ${p.unite ? `<span>par ${Site.esc(p.unite)}</span>` : ''}
+          </div>
+          <div class="price">${Site.money(p.prix_vente)}</div>
+          <a href="contact.html" class="btn btn-outline btn-sm" style="margin-top:14px;">
+            <i data-lucide="phone"></i> Demander
+          </a>
+        </div>`).join('') :
+        '<div class="empty-state" style="grid-column:1/-1;"><i data-lucide="package-x"></i><p>Aucun équipement trouvé.</p></div>';
+      lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initSite('materiel');
+      const cat = await Site.loadCatalog();
+      _products = cat.products || [];
+      render(_products);
+      document.getElementById('search').addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        render(_products.filter(p =>
+          (p.designation || '').toLowerCase().includes(q) ||
+          (p.categorie || '').toLowerCase().includes(q)));
+      });
+    });
+  </script>
+</body>
+</html>

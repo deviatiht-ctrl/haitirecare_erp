@@ -1,7 +1,20 @@
 // Tasks module helper functions
 
+// assigne_a/assigne_par refere auth.users (pa erp_users) → join pa mache;
+// fize non yo apre requete a.
+async function withAssignees(rows) {
+  const { data: users } = await db.from('erp_users').select('id, first_name, last_name');
+  const map = {};
+  (users || []).forEach(u => { map[u.id] = u; });
+  return (rows || []).map(t => ({
+    ...t,
+    assigne: map[t.assigne_a] || null,
+    assigne_par: map[t.assigne_par] || null
+  }));
+}
+
 export async function loadTasks(filters = {}) {
-  let query = db.from('erp_taches').select('*, assigne:erp_users(first_name, last_name), assigne_par:erp_users(first_name, last_name)');
+  let query = db.from('erp_taches').select('*');
   
   if (filters.status) {
     query = query.eq('statut', filters.status);
@@ -25,23 +38,24 @@ export async function loadTasks(filters = {}) {
     console.error('Load tasks error:', error);
     return [];
   }
-  
-  return data || [];
+
+  return withAssignees(data);
 }
 
 export async function getTaskById(taskId) {
   const { data, error } = await db
     .from('erp_taches')
-    .select('*, assigne:erp_users(first_name, last_name)')
+    .select('*')
     .eq('id', taskId)
     .single();
-  
+
   if (error) {
     console.error('Get task error:', error);
     return null;
   }
-  
-  return data;
+
+  const [task] = await withAssignees([data]);
+  return task;
 }
 
 export async function createTask(taskData) {

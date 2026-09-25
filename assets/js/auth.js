@@ -28,7 +28,7 @@ const ERP_MODULE_REGISTRY = {
   dashboard:    { label: 'Tableau de bord',      icon: 'layout-dashboard', page: '/dashboard.html',                      section: 'Principal' },
   clients:      { label: 'Clients',              icon: 'users',            page: '/modules/clients/liste.html',          section: 'Gestion' },
   stock:        { label: 'Stock & Inventaire',   icon: 'package',          page: '/modules/stock/inventaire.html',       section: 'Gestion' },
-  catalogue:    { label: 'Catalogue',            icon: 'shopping-bag',     page: '/modules/stock/inventaire.html',       section: 'Gestion' },
+  catalogue:    { label: 'Catalogue Client',     icon: 'shopping-bag',     page: '/modules/stock/catalogue.html',        section: 'Gestion' },
   finances:     { label: 'Finances',             icon: 'dollar-sign',      page: '/modules/finances/revenus.html',       section: 'Gestion' },
   caisse:       { label: 'Caisse',               icon: 'wallet',           page: '/modules/finances/caisse.html',        section: 'Gestion' },
   ventes:       { label: 'Ventes',               icon: 'shopping-cart',    page: null,                                   section: 'Gestion' },
@@ -56,7 +56,10 @@ const ERP_MODULE_REGISTRY = {
   services:     { label: 'Services & Tarifs',    icon: 'clipboard-list',   page: null,                                   section: 'Gestion' },
   facturation_medical: { label: 'Facturation Médicale', icon: 'receipt',   page: null,                                   section: 'Gestion' },
   pharmacie:    { label: 'Pharmacie',            icon: 'pill',             page: null,                                   section: 'Gestion' },
-  materiel_orthopedique: { label: 'Matériel Orthopédique', icon: 'package-plus', page: '/modules/stock/inventaire.html',   section: 'Gestion' }
+  materiel_orthopedique: { label: 'Matériel Orthopédique', icon: 'package-plus', page: '/modules/stock/inventaire.html?cat=Mat%C3%A9riel%20Orthop%C3%A9dique&m=materiel_orthopedique', section: 'Gestion' },
+  // Site public HAITI REH-CARE
+  siteweb:      { label: 'Site Web',             icon: 'globe',            page: '/modules/siteweb/index.html',          section: 'Site Web' },
+  annonces:     { label: 'Annonces',             icon: 'megaphone',        page: '/modules/siteweb/index.html#annonces', section: 'Site Web' }
 };
 
 // Modules toujours présents pour toute entreprise
@@ -95,7 +98,9 @@ const ERP_MODULE_PERMISSIONS = {
   services:     ['services', 'catalogue'],
   facturation_medical: ['facturation_medical', 'facturation', 'finances'],
   pharmacie:    ['pharmacie', 'stock'],
-  materiel_orthopedique: ['materiel_orthopedique', 'stock', 'catalogue']
+  materiel_orthopedique: ['materiel_orthopedique', 'stock', 'catalogue'],
+  siteweb:      ['siteweb', 'parametres'],
+  annonces:     ['annonces', 'siteweb', 'parametres']
 };
 
 // Permissions par défaut selon le rôle (utilisées si le poste
@@ -194,9 +199,14 @@ async function getEnterpriseContext(user) {
 
   const unlocked = ctx.enterprise?.features_unlocked || ctx.settings?.features_enabled;
   if (unlocked && typeof unlocked === 'object') {
-    Object.keys(unlocked)
-      .filter(k => k !== 'all' && unlocked[k])
-      .forEach(k => ctx.modules.push(k));
+    if (unlocked.all) {
+      ctx.unlockedAll = true;
+      ctx.modules.push(...Object.keys(ERP_MODULE_REGISTRY));
+    } else {
+      Object.keys(unlocked)
+        .filter(k => k !== 'all' && unlocked[k])
+        .forEach(k => ctx.modules.push(k));
+    }
   }
 
   ctx.modules = [...new Set(ctx.modules)];
@@ -237,7 +247,13 @@ function getModuleNavItem(code) {
 // Liste des modules visibles dans la navigation pour l'utilisateur courant
 function getVisibleNavModules() {
   const ctx = window.enterpriseContext || { modules: ERP_CORE_MODULES };
-  const candidates = [...(ctx.modules || []), 'parametres', 'users'];
+  const perms = window.currentUser?.effective_permissions || {};
+  const isFullAccess = Boolean(perms.all || ctx.unlockedAll || window.currentUser?.role === 'pdg');
+
+  const candidates = isFullAccess
+    ? Object.keys(ERP_MODULE_REGISTRY)
+    : [...(ctx.modules || []), 'parametres', 'users'];
+
   const seen = new Set(['dashboard']);
   const items = [];
   candidates.forEach(code => {
@@ -252,7 +268,7 @@ function getVisibleNavModules() {
 const ERP_PATH_MODULE = {
   clients: 'clients', stock: 'stock', finances: 'finances', rh: 'rh',
   taches: 'taches', rapports: 'rapports', communication: 'messages',
-  parametres: 'parametres', users: 'users'
+  parametres: 'parametres', users: 'users', siteweb: 'siteweb'
 };
 
 // Check if current page is allowed for the current user
@@ -287,6 +303,17 @@ function checkPagePermission() {
   return true;
 }
 
+// Service Worker Registration for PWA / Offline Mode
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+    }).catch(err => {
+      console.warn('[PWA] ServiceWorker registration failed:', err);
+    });
+  });
+}
+
 // Get current page name
 function getCurrentPage() {
   const path = window.location.pathname;
@@ -305,49 +332,54 @@ async function _initAppOnce() {
   try {
     console.log('initApp called, checking session...');
     
-    // Check if user is authenticated with Supabase (admin/PDG)
-    const { data: { session }, error: sessionError } = await db.auth.getSession();
-    
-    console.log('Supabase session:', session, 'Error:', sessionError);
-    
-    let user;
-    
-    if (sessionError || !session) {
-      // Check if non-admin user is stored in localStorage
-      console.log('No Supabase session, checking localStorage');
+    let user = null;
+    let session = null;
+
+    try {
+      const res = await db.auth.getSession();
+      session = res.data?.session;
+    } catch (e) {
+      console.warn('Supabase getSession network warning (offline):', e);
+    }
+
+    if (!session) {
       const storedUser = localStorage.getItem('currentUser');
-      const storedSession = localStorage.getItem('currentSession');
-      if (storedUser && storedSession) {
+      if (storedUser) {
         user = JSON.parse(storedUser);
-        console.log('Using localStorage user:', user);
-      } else {
-        console.log('No session and no localStorage user, redirecting to index');
+        console.log('Using offline cached user:', user);
+      } else if (getCurrentPage() !== 'index.html') {
         window.location.href = '/index.html';
         return;
       }
     } else {
-      // Fetch user profile with role for Supabase users
-      const { data: userData, error: userError } = await db
-        .from('erp_users')
-        .select('*, erp_postes(*)')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (userError || !userData) {
-        console.error('User fetch error:', userError);
-        await db.auth.signOut();
-        window.location.href = '/index.html';
-        return;
+      try {
+        const { data: userData, error: userError } = await db
+          .from('erp_users')
+          .select('*, erp_postes(*)')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (userData && !userError) {
+          user = userData;
+          localStorage.setItem('currentUser', JSON.stringify(user));
+          localStorage.setItem('currentSession', JSON.stringify(session));
+        } else {
+          const storedUser = localStorage.getItem('currentUser');
+          if (storedUser) user = JSON.parse(storedUser);
+        }
+      } catch (err) {
+        console.warn('User profile fetch error (offline fallback):', err);
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) user = JSON.parse(storedUser);
       }
-      
-      if (!userData.is_active) {
-        await db.auth.signOut();
-        window.location.href = '/index.html';
-        return;
-      }
-      
-      user = userData;
       window.currentSession = session;
+    }
+
+    if (!user) {
+      if (getCurrentPage() !== 'index.html') {
+        window.location.href = '/index.html';
+      }
+      return;
     }
 
     window.currentUser = user;
@@ -361,11 +393,11 @@ async function _initAppOnce() {
     // Check page permission
     if (!checkPagePermission()) return;
 
-    // Update last login
-    try {
-      await db.from('erp_users').update({ last_login: new Date() }).eq('id', user.id);
-    } catch (e) {
-      console.warn('last_login update:', e);
+    // Update last login (if online)
+    if (navigator.onLine && user?.id) {
+      try {
+        await db.from('erp_users').update({ last_login: new Date() }).eq('id', user.id);
+      } catch (e) { /* ignore offline */ }
     }
     
     // Render sidebar if on dashboard
@@ -404,16 +436,28 @@ async function login(email, password) {
     }
     
     // Get user profile from erp_users
-    const { data: user, error: userError } = await db
+    let { data: user, error: userError } = await db
       .from('erp_users')
       .select('*, erp_postes(*)')
       .eq('id', authData.user.id)
       .maybeSingle();
-    
+
     if (userError) {
       return { success: false, error: 'Erreur lors de la récupération du profil' };
     }
-    
+
+    // Itilizatè ki egziste nan Auth men san pwofil ERP (ex. anplwaye kreye
+    // anvan fix la) → repare pwofil la otomatikman epi reload l.
+    if (!user) {
+      await db.rpc('erp_claim_my_profile');
+      const retry = await db
+        .from('erp_users')
+        .select('*, erp_postes(*)')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+      user = retry.data;
+    }
+
     if (!user) {
       return { success: false, error: 'Profil utilisateur non trouvé' };
     }
@@ -426,22 +470,7 @@ async function login(email, password) {
     window.currentUser = user;
     window.currentSession = authData.session;
     
-    // Check if user is solely a platform admin without enterprise
-    try {
-      const { data: enterpriseId } = await db.rpc('erp_get_user_enterprise');
-      
-      // If user has no enterprise but is CVisual admin, route to platform admin console
-      if (!enterpriseId) {
-        const { data: isAdmin } = await db.rpc('erp_is_cvisual_admin');
-        if (isAdmin) {
-          return { success: true, redirectUrl: 'cvisual-admin.html' };
-        }
-      }
-    } catch (e) {
-      console.warn('Enterprise check warning:', e);
-    }
-    
-    // All enterprises use the dynamic modular dashboard (dashboard.html)
+    // All staff members land on the dynamic modular dashboard
     return { success: true, redirectUrl: 'dashboard.html' };
     
   } catch (error) {

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Annonces — Achat & Vente Matériel — HAITI REH-CARE</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/site.js"></script>
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <section class="page-hero">
+    <h1>Annonces — Matériel orthopédique</h1>
+    <p>Achat, vente et don de prothèses, orthèses et équipements entre particuliers. Chaque annonce est vérifiée par le centre avant publication.</p>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:32px;">
+        <div id="annonces-filters" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+        <button class="btn btn-teal" onclick="postAnnonce()"><i data-lucide="plus"></i> Publier une annonce</button>
+      </div>
+      <div class="grid grid-3" id="annonces-grid"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script>
+    let _annonces = [];
+    let _filter = 'all';
+
+    const TYPE_LABEL = { vente: ['badge-teal', 'Vente'], achat: ['badge-blue', 'Recherche'], don: ['badge-green', 'Don'] };
+    const ETAT_LABEL = { neuf: 'Neuf', tres_bon: 'Très bon état', bon: 'Bon état', usage: 'Usagé' };
+
+    function render() {
+      const f = document.getElementById('annonces-filters');
+      f.innerHTML = ['all', 'vente', 'achat', 'don'].map(t =>
+        `<button class="btn btn-sm ${t === _filter ? 'btn-teal' : 'btn-ghost'}" onclick="setFilter('${t}')">
+          ${t === 'all' ? 'Toutes' : (TYPE_LABEL[t] || [,''])[1]}</button>`).join('');
+
+      const list = _filter === 'all' ? _annonces : _annonces.filter(a => a.type === _filter);
+      document.getElementById('annonces-grid').innerHTML = list.length ? list.map((a, i) => {
+        const [cls, label] = TYPE_LABEL[a.type] || ['badge-gray', a.type];
+        return `
+        <div class="card">
+          ${a.image_url
+            ? `<img src="${Site.esc(a.image_url)}" alt="${Site.esc(a.titre)}" style="width:100%; height:160px; object-fit:cover; border-radius:10px; margin-bottom:16px;">`
+            : `<div class="icon-box ${i % 2 ? 'blue' : 'teal'}"><i data-lucide="megaphone"></i></div>`}
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <span class="badge ${cls}">${label}</span>
+            ${a.etat ? `<span class="badge badge-gray">${ETAT_LABEL[a.etat] || a.etat}</span>` : ''}
+          </div>
+          <h3>${Site.esc(a.titre)}</h3>
+          <p>${Site.esc(a.description || '')}</p>
+          ${a.type !== 'don' ? `<div class="price">${Site.money(a.prix, a.devise)}</div>` : '<div class="price" style="color:var(--rc-success);">Gratuit</div>'}
+          <div class="meta">
+            ${a.contact_nom ? `<span><i data-lucide="user"></i> ${Site.esc(a.contact_nom)}</span>` : ''}
+            ${a.contact_phone ? `<span><i data-lucide="phone"></i> ${Site.esc(a.contact_phone)}</span>` : ''}
+            <span><i data-lucide="calendar"></i> ${Site.date(a.created_at)}</span>
+          </div>
+          ${a.contact_phone ? `<a href="tel:${Site.esc(a.contact_phone)}" class="btn btn-outline btn-sm" style="margin-top:14px;"><i data-lucide="phone"></i> Contacter</a>` : ''}
+        </div>`;
+      }).join('') :
+        '<div class="empty-state" style="grid-column:1/-1;"><i data-lucide="megaphone"></i><p>Aucune annonce publiée pour le moment.</p></div>';
+      lucide.createIcons();
+    }
+
+    function setFilter(t) { _filter = t; render(); }
+
+    async function postAnnonce() {
+      const session = await Site.session();
+      if (!session) {
+        window.location.href = 'compte.html?next=annonces';
+        return;
+      }
+      window.location.href = 'compte.html#annonce';
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initSite('annonces');
+      const { data } = await db.from('erp_annonces')
+        .select('*')
+        .eq('statut', 'publie')
+        .order('created_at', { ascending: false });
+      _annonces = data || [];
+      render();
+    });
+  </script>
+</body>
+</html>

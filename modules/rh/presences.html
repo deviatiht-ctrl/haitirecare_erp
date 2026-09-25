@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Présences - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Présences - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
-  <script src="/assets/js/excel.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
+  <script src="/assets/js/excel.js?v=8"></script>
 </head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -131,13 +131,19 @@
       const filterDate = date || new Date().toISOString().split('T')[0];
       
       try {
+        // employe_id refere auth.users (pa erp_users) → join PostgREST
+        // pa mache; 2 requete separe + fusion pa id.
         const { data: presences } = await db
           .from('erp_presences')
-          .select('*, erp_users(first_name, last_name)')
+          .select('*')
           .eq('date_presence', filterDate)
           .order('heure_arrivee', { ascending: false });
-        
-        allPresences = presences || [];
+
+        const { data: users } = await db.from('erp_users').select('id, first_name, last_name');
+        const userMap = {};
+        (users || []).forEach(u => { userMap[u.id] = u; });
+
+        allPresences = (presences || []).map(p => ({ ...p, erp_users: userMap[p.employe_id] || null }));
         renderPresencesTable(allPresences);
       } catch (error) {
         console.error('Load presences error:', error);

@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Module - ERP Entreprise</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=7">
-  <link rel="stylesheet" href="/assets/css/main.css?v=7">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=7">
-  <link rel="stylesheet" href="/assets/css/components.css?v=7">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=7">
+  <title>Module - HAITI REH-CARE ERP</title>
+  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
+  <link rel="stylesheet" href="/assets/css/main.css?v=8">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
+  <link rel="stylesheet" href="/assets/css/components.css?v=8">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=7"></script>
-  <script src="/assets/js/auth.js?v=7"></script>
-  <script src="/assets/js/layout.js?v=7"></script>
+  <script src="/assets/js/supabase.js?v=8"></script>
+  <script src="/assets/js/auth.js?v=8"></script>
+  <script src="/assets/js/layout.js?v=8"></script>
 </head>
 <body>
   <!-- Page de module GENERIQUE.
@@ -23,7 +23,7 @@
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img src="/assets/img/logo-placeholder.svg" alt="Logo" class="sidebar-logo">
+        <img src="/assets/img/logohaitirecare.png" alt="Logo" class="sidebar-logo">
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
@@ -193,7 +193,7 @@
 
       moduleMeta = await loadModuleMeta(moduleCode);
       titleEl.textContent = moduleMeta.name;
-      document.title = `${moduleMeta.name} - ERP Entreprise`;
+      document.title = `${moduleMeta.name} - HAITI REH-CARE ERP`;
 
       const { supported, rows } = await loadModuleData(moduleCode);
       tableColumns = inferColumns(rows);
@@ -249,8 +249,8 @@
             <i data-lucide="puzzle" style="width: 40px; height: 40px; color: #3b82f6; margin-bottom: 16px;"></i>
             <h3 style="margin: 0 0 8px;">Module actif</h3>
             <p style="color: var(--clr-text-muted, #94a3b8); max-width: 480px; margin: 0 auto;">
-              Ce module est activé pour votre entreprise. Son interface dédiée sera
-              configurée par CVisual — aucune installation n'est nécessaire de votre côté.
+              Ce module est activé pour votre centre. Son interface dédiée sera
+              configurée par l'administration de HAITI REH-CARE.
             </p>
             <a href="/dashboard.html" class="btn btn-secondary" style="display: inline-flex; margin-top: 24px; text-decoration: none;">
               <i data-lucide="arrow-left"></i> Retour au tableau de bord

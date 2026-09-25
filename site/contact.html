@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact — HAITI REH-CARE</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/site.js"></script>
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <section class="page-hero">
+    <h1>Contactez-nous</h1>
+    <p>Une question sur nos soins, une prothèse ou du matériel ? Écrivez-nous ou appelez directement le centre.</p>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid" style="grid-template-columns: 1fr 1.2fr; gap: 40px;" id="contact-layout">
+
+        <!-- Infos -->
+        <div>
+          <div class="list-item"><div class="icon-box teal"><i data-lucide="map-pin"></i></div>
+            <div class="grow"><strong>Adresse</strong><span id="c-address">Port-au-Prince, Haïti</span></div>
+          </div>
+          <div class="list-item"><div class="icon-box blue"><i data-lucide="phone"></i></div>
+            <div class="grow"><strong>Téléphone</strong><span id="c-phone">—</span></div>
+          </div>
+          <div class="list-item"><div class="icon-box teal"><i data-lucide="mail"></i></div>
+            <div class="grow"><strong>Email</strong><span id="c-email">—</span></div>
+          </div>
+          <div class="list-item"><div class="icon-box blue"><i data-lucide="clock"></i></div>
+            <div class="grow"><strong>Horaires</strong><span>Lun – Ven : 8h – 17h · Sam : 8h – 12h</span></div>
+          </div>
+          <a href="rendez-vous.html" class="btn btn-teal" style="margin-top:12px;">
+            <i data-lucide="calendar-plus"></i> Prendre rendez-vous
+          </a>
+        </div>
+
+        <!-- Form -->
+        <div class="form-card">
+          <h3 style="font-size:18px; margin-bottom:20px;">Envoyer un message</h3>
+          <div id="contact-alert"></div>
+          <form id="contact-form">
+            <div class="form-grid">
+              <div class="field"><label>Nom complet <span class="req">*</span></label><input type="text" name="nom" required></div>
+              <div class="field"><label>Téléphone</label><input type="tel" name="phone"></div>
+              <div class="field full"><label>Email <span class="req">*</span></label><input type="email" name="email" required></div>
+              <div class="field full"><label>Sujet</label>
+                <select name="sujet">
+                  <option>Question générale</option>
+                  <option>Rendez-vous</option>
+                  <option>Prothèses / Orthèses</option>
+                  <option>Matériel orthopédique</option>
+                  <option>Autre</option>
+                </select>
+              </div>
+              <div class="field full"><label>Message <span class="req">*</span></label>
+                <textarea name="message" required placeholder="Votre message…"></textarea>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-teal" style="margin-top:20px;"><i data-lucide="send"></i> Envoyer</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initSite('contact');
+      const ent = Site.enterprise || {};
+      if (ent.address) document.getElementById('c-address').textContent = [ent.address, ent.city, ent.country].filter(Boolean).join(', ');
+      if (ent.phone) document.getElementById('c-phone').textContent = ent.phone;
+      if (ent.email) document.getElementById('c-email').textContent = ent.email;
+
+      document.getElementById('contact-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        const { error } = await db.from('erp_site_messages').insert({
+          enterprise_id: ent.id || null,
+          nom: f.get('nom'),
+          email: f.get('email'),
+          phone: f.get('phone'),
+          sujet: f.get('sujet'),
+          message: f.get('message')
+        });
+        const el = document.getElementById('contact-alert');
+        if (error) {
+          el.innerHTML = `<div class="alert alert-error"><i data-lucide="alert-circle"></i><span>${Site.esc(error.message)}</span></div>`;
+        } else {
+          el.innerHTML = '<div class="alert alert-success"><i data-lucide="check-circle-2"></i><span>Message envoyé — le centre vous répondra rapidement.</span></div>';
+          e.target.reset();
+        }
+        lucide.createIcons();
+      });
+    });
+  </script>
+</body>
+</html>
