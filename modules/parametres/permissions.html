@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Permissions - HAITI REH-CARE ERP</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
-  <link rel="stylesheet" href="/assets/css/main.css?v=8">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
-  <link rel="stylesheet" href="/assets/css/components.css?v=8">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
+  <link rel="stylesheet" href="/assets/css/variables.css?v=9">
+  <link rel="stylesheet" href="/assets/css/main.css?v=9">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=9">
+  <link rel="stylesheet" href="/assets/css/components.css?v=9">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=9">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=9"></script>
-  <script src="/assets/js/auth.js?v=9"></script>
-  <script src="/assets/js/layout.js?v=9"></script>
+  <script src="/assets/js/supabase.js?v=10"></script>
+  <script src="/assets/js/auth.js?v=10"></script>
+  <script src="/assets/js/layout.js?v=10"></script>
 </head>
 <body>
   <div class="app-layout">
@@ -78,6 +78,8 @@
                   <th>Resp. Stock</th>
                   <th>Commercial</th>
                   <th>RH</th>
+                  <th>Réceptionniste</th>
+                  <th>Chauffeur</th>
                   <th>Employé</th>
                 </tr>
               </thead>
@@ -128,6 +130,8 @@
         responsable_stock: 'none',
         commercial: 'none',
         rh: 'read',
+        receptionniste: 'none',
+        chauffeur: 'none',
         employe: 'none'
       },
       'Stock': {
@@ -137,6 +141,8 @@
         responsable_stock: 'full',
         commercial: 'read',
         rh: 'none',
+        receptionniste: 'none',
+        chauffeur: 'none',
         employe: 'read'
       },
       'Finances': {
@@ -146,6 +152,8 @@
         responsable_stock: 'none',
         commercial: 'none',
         rh: 'none',
+        receptionniste: 'none',
+        chauffeur: 'none',
         employe: 'none'
       },
       'Clients': {
@@ -155,6 +163,8 @@
         responsable_stock: 'none',
         commercial: 'full',
         rh: 'read',
+        receptionniste: 'full',
+        chauffeur: 'none',
         employe: 'none'
       },
       'RH': {
@@ -164,6 +174,8 @@
         responsable_stock: 'none',
         commercial: 'none',
         rh: 'full',
+        receptionniste: 'none',
+        chauffeur: 'none',
         employe: 'read'
       },
       'Tâches': {
@@ -173,6 +185,8 @@
         responsable_stock: 'read',
         commercial: 'read',
         rh: 'read',
+        receptionniste: 'read',
+        chauffeur: 'read',
         employe: 'read'
       },
       'Rapports': {
@@ -182,6 +196,8 @@
         responsable_stock: 'read',
         commercial: 'read',
         rh: 'read',
+        receptionniste: 'read',
+        chauffeur: 'none',
         employe: 'none'
       },
       'Paramètres': {
@@ -191,6 +207,8 @@
         responsable_stock: 'none',
         commercial: 'none',
         rh: 'none',
+        receptionniste: 'none',
+        chauffeur: 'none',
         employe: 'none'
       }
     };

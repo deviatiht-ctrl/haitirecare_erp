@@ -297,10 +297,10 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
           </div>
           ${inText('lieu_accident', "Lieu de l'accident")}
         </div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:16px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(260px,100%),1fr)); gap:16px;">
           <fieldset style="border:1px solid var(--clr-border,#e2e8f0); border-radius:8px; padding:12px;">
             <legend style="font-size:13px; font-weight:600; padding:0 6px;">Membre inférieur (MI)</legend>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(140px,100%),1fr)); gap:8px;">
               ${['gauche','droite'].map(side => `
                 <div>
                   <strong style="font-size:12px;">MI ${side === 'gauche' ? 'GAUCHE' : 'DROITE'}</strong>
@@ -313,7 +313,7 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
           </fieldset>
           <fieldset style="border:1px solid var(--clr-border,#e2e8f0); border-radius:8px; padding:12px;">
             <legend style="font-size:13px; font-weight:600; padding:0 6px;">Membre supérieur (MS)</legend>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(140px,100%),1fr)); gap:8px;">
               ${['gauche','droite'].map(side => `
                 <div>
                   <strong style="font-size:12px;">MS ${side === 'gauche' ? 'GAUCHE' : 'DROITE'}</strong>
@@ -467,7 +467,7 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
       <summary class="card-header" style="cursor:pointer;"><h3 class="card-title">IX. Prescription &amp; suivi du traitement</h3></summary>
       <div class="card-body" style="padding: var(--space-5);">
         <label class="form-label">Plan d'exercices (initial)</label>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:8px 16px; margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(min(300px,100%),1fr)); gap:8px 16px; margin-bottom:16px;">
           ${PLAN_EXERCICES.map(([k, lbl]) => `
             <div style="display:flex; align-items:center; gap:8px;">
               <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:normal; white-space:nowrap; cursor:pointer; min-width:150px;">
@@ -480,7 +480,7 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
       </div>
     </details>
 
-    <div style="display:flex; gap:12px; position:sticky; bottom:0; padding:12px 0; background: var(--clr-bg, #fff);">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; position:sticky; bottom:0; padding:12px 0; background: var(--clr-bg, #fff);">
       <button type="submit" class="btn btn-primary">
         <i data-lucide="save"></i> ${_editingPatient ? 'Mettre à jour le dossier' : 'Enregistrer le patient'}
       </button>
@@ -1024,11 +1024,11 @@ async function renderPatientDossier(container, p) {
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(300px,100%), 1fr)); gap:16px;">
       <div class="card" style="padding: var(--space-5);">
         <h3 class="card-title" style="margin-bottom:12px;">Informations personnelles</h3>
         ${photoUrl ? `<img src="${photoUrl}" alt="Photo" style="width:84px; height:84px; object-fit:cover; border-radius:10px; margin-bottom:12px;">` : ''}
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(150px,100%),1fr)); gap:10px;">
           ${row('Né(e) le', p.date_naissance)}
           ${row('Genre', p.sexe === 'M' ? 'Masculin' : p.sexe === 'F' ? 'Féminin' : p.sexe)}
           ${row('État civil', p.etat_civil)}
@@ -1043,7 +1043,7 @@ async function renderPatientDossier(container, p) {
 
       <div class="card" style="padding: var(--space-5);">
         <h3 class="card-title" style="margin-bottom:12px;">Référence &amp; invalidité</h3>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(150px,100%),1fr)); gap:10px;">
           ${row('Envoyé de', (p.envoye_de || []).concat(p.envoye_de_autre ? [p.envoye_de_autre] : []))}
           ${row('Déjà appareillé', {non:'Non', oui:'Oui', oui_hrc:'Oui — Haiti Reh-Care'}[p.deja_appareille])}
           ${row('Diagnostic', p.diagnostic)}

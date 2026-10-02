@@ -84,6 +84,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'none',
       commercial: 'none',
       rh: 'read',
+      receptionniste: 'none',
+      chauffeur: 'none',
       employe: 'none'
     },
     'Stock': {
@@ -93,6 +95,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'full',
       commercial: 'read',
       rh: 'none',
+      receptionniste: 'none',
+      chauffeur: 'none',
       employe: 'read'
     },
     'Finances': {
@@ -102,6 +106,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'none',
       commercial: 'none',
       rh: 'none',
+      receptionniste: 'none',
+      chauffeur: 'none',
       employe: 'none'
     },
     'Clients': {
@@ -111,6 +117,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'none',
       commercial: 'full',
       rh: 'read',
+      receptionniste: 'full',
+      chauffeur: 'none',
       employe: 'none'
     },
     'RH': {
@@ -120,6 +128,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'none',
       commercial: 'none',
       rh: 'full',
+      receptionniste: 'none',
+      chauffeur: 'none',
       employe: 'read'
     },
     'Tâches': {
@@ -129,6 +139,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'read',
       commercial: 'read',
       rh: 'read',
+      receptionniste: 'read',
+      chauffeur: 'read',
       employe: 'read'
     },
     'Rapports': {
@@ -138,6 +150,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'read',
       commercial: 'read',
       rh: 'read',
+      receptionniste: 'read',
+      chauffeur: 'none',
       employe: 'none'
     },
     'Paramètres': {
@@ -147,6 +161,8 @@ export function getPermissionMatrix() {
       responsable_stock: 'none',
       commercial: 'none',
       rh: 'none',
+      receptionniste: 'none',
+      chauffeur: 'none',
       employe: 'none'
     }
   };

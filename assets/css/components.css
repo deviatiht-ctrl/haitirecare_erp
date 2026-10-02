@@ -40,9 +40,15 @@
 /* KPI Cards */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-6);
+}
+
+.kpi-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
 }
 
 .kpi-card {
@@ -709,6 +715,15 @@
     grid-template-columns: 1fr;
   }
 
+  .kpi-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Panno mesaj / grid ki gen wotè fiks — anile sou ti ekran */
+  [style*="calc(100vh"] {
+    height: auto !important;
+  }
+
   .kpi-card {
     padding: var(--space-4);
   }
@@ -761,6 +776,8 @@
   .filters-bar .form-input,
   .filters-bar .form-select {
     width: 100%;
+    max-width: 100% !important;
+    min-width: 0 !important;
   }
 
   .modal {

@@ -141,6 +141,8 @@ a { color: var(--rc-blue); text-decoration: none; }
 .grid-2 { grid-template-columns: repeat(2, 1fr); }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
+.msg-layout { grid-template-columns: 280px 1fr; }
+.contact-layout { grid-template-columns: 1fr 1.2fr; }
 .card {
   background: #fff; border: 1px solid var(--rc-border); border-radius: var(--rc-radius);
   padding: 28px; transition: .2s;
@@ -314,6 +316,9 @@ a { color: var(--rc-blue); text-decoration: none; }
   .site-nav .btn { margin: 8px 0 0; justify-content: center; }
   .burger { display: block; margin-left: auto; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .msg-layout, .contact-layout { grid-template-columns: 1fr; }
+  .chat-box { height: 60vh; min-height: 320px; }
   .form-grid { grid-template-columns: 1fr; }
   .cta-banner { padding: 36px 28px; }
   .hero-stats { gap: 24px; flex-wrap: wrap; }

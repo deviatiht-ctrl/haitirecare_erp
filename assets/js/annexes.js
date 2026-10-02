@@ -206,7 +206,7 @@ function renderAnnexeCards(annexes, canManage) {
     </div>`;
   }
 
-  return `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:16px;">
+  return `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(min(300px,100%), 1fr)); gap:16px;">
     ${annexes.map(a => {
       const st = _annexStats[a.id] || { employes: 0, patients: 0 };
       const responsable = _allStaff.find(u => u.id === a.responsable_id);

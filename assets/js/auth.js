@@ -117,6 +117,8 @@ const ERP_ROLE_DEFAULT_PERMISSIONS = {
   responsable_stock: { stock: true, catalogue: true, fournisseurs: true, rapports: true, messages: true },
   commercial:        { clients: true, stock_read: true, catalogue: true, ventes: true, taches: true, rapports: true, messages: true },
   rh:                { rh: true, employes: true, presences: true, conges: true, taches: true, rapports: true, messages: true },
+  receptionniste:    { patients: true, clients: true, rdv: true, agenda: true, seances: true, taches: true, messages: true },
+  chauffeur:         { taches_own: true, presences_own: true, messages: true },
   employe:           { taches_own: true, presences_own: true, messages: true }
 };
 
@@ -562,6 +564,8 @@ function formatRole(role) {
     'responsable_stock': 'Responsable Stock',
     'commercial': 'Commercial',
     'rh': 'RH',
+    'receptionniste': 'Réceptionniste',
+    'chauffeur': 'Chauffeur',
     'employe': 'Employé'
   };
   return roleNames[role] || role;

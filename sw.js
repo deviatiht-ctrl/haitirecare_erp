@@ -1,7 +1,7 @@
 // Service Worker - HAITI REH-CARE ERP & Public Site
 // Enables 100% offline functionality (Cache-First / Network Fallback)
 
-const CACHE_NAME = 'haiti-rehcare-cache-v5';
+const CACHE_NAME = 'haiti-rehcare-cache-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -9,14 +9,14 @@ const STATIC_ASSETS = [
   '/module.html',
   '/onboarding.html',
   '/manifest.json',
-  '/assets/css/variables.css?v=8',
-  '/assets/css/main.css?v=8',
-  '/assets/css/layout.css?v=8',
-  '/assets/css/components.css?v=8',
-  '/assets/css/dashboard.css?v=8',
-  '/assets/js/supabase.js?v=9',
-  '/assets/js/auth.js?v=9',
-  '/assets/js/layout.js?v=9',
+  '/assets/css/variables.css?v=9',
+  '/assets/css/main.css?v=9',
+  '/assets/css/layout.css?v=9',
+  '/assets/css/components.css?v=9',
+  '/assets/css/dashboard.css?v=9',
+  '/assets/js/supabase.js?v=10',
+  '/assets/js/auth.js?v=10',
+  '/assets/js/layout.js?v=10',
   '/assets/js/modular-dashboard.js',
   '/assets/js/stock.js',
   '/assets/js/clients.js',
@@ -25,8 +25,8 @@ const STATIC_ASSETS = [
   '/assets/js/taches.js',
   '/assets/js/rapports.js',
   '/assets/js/users.js',
-  '/assets/js/patients.js?v=10',
-  '/assets/js/annexes.js?v=10',
+  '/assets/js/patients.js?v=11',
+  '/assets/js/annexes.js?v=11',
   '/assets/img/logohaitirecare.png',
   '/modules/stock/inventaire.html',
   '/modules/stock/catalogue.html',

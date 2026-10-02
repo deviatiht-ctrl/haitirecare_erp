@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Catalogue Public & Produits - HAITI REH-CARE ERP</title>
-  <link rel="stylesheet" href="/assets/css/variables.css?v=8">
-  <link rel="stylesheet" href="/assets/css/main.css?v=8">
-  <link rel="stylesheet" href="/assets/css/layout.css?v=8">
-  <link rel="stylesheet" href="/assets/css/components.css?v=8">
-  <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
+  <link rel="stylesheet" href="/assets/css/variables.css?v=9">
+  <link rel="stylesheet" href="/assets/css/main.css?v=9">
+  <link rel="stylesheet" href="/assets/css/layout.css?v=9">
+  <link rel="stylesheet" href="/assets/css/components.css?v=9">
+  <link rel="stylesheet" href="/assets/css/dashboard.css?v=9">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=9"></script>
-  <script src="/assets/js/auth.js?v=9"></script>
-  <script src="/assets/js/layout.js?v=9"></script>
+  <script src="/assets/js/supabase.js?v=10"></script>
+  <script src="/assets/js/auth.js?v=10"></script>
+  <script src="/assets/js/layout.js?v=10"></script>
   <style>
     .share-banner {
       background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
@@ -52,7 +52,7 @@
     }
     .share-input-group input {
       flex: 1;
-      min-width: 260px;
+      min-width: min(260px, 100%);
       padding: 12px 16px;
       border-radius: 10px;
       border: 1px solid rgba(255, 255, 255, 0.3);
@@ -102,7 +102,7 @@
 
     .catalog-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
       gap: 20px;
     }
     .catalog-card {

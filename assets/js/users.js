@@ -97,6 +97,8 @@ export function formatRole(role) {
     'responsable_stock': 'Responsable Stock',
     'commercial': 'Commercial',
     'rh': 'RH',
+    'receptionniste': 'Réceptionniste',
+    'chauffeur': 'Chauffeur',
     'employe': 'Employé'
   };
   
