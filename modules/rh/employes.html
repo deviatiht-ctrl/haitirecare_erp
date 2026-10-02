@@ -12,10 +12,10 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="/assets/js/supabase.js?v=8"></script>
-  <script src="/assets/js/auth.js?v=8"></script>
-  <script src="/assets/js/layout.js?v=8"></script>
-  <script src="/assets/js/excel.js?v=8"></script>
+  <script src="/assets/js/supabase.js?v=9"></script>
+  <script src="/assets/js/auth.js?v=9"></script>
+  <script src="/assets/js/layout.js?v=9"></script>
+  <script src="/assets/js/excel.js?v=9"></script>
 </head>
 <body>
   <div class="app-layout">
@@ -85,6 +85,7 @@
 
   <script>
     let allEmployees = [];
+    let annexesMap = {};
 
     async function loadEmployees() {
       try {
@@ -99,6 +100,10 @@
         const { data: fiches } = await db.from('erp_employes').select('*');
         const ficheMap = {};
         (fiches || []).forEach(f => { ficheMap[f.id] = f; });
+
+        const { data: annexes } = await db.from('erp_annexes').select('id, code, nom');
+        annexesMap = {};
+        (annexes || []).forEach(a => { annexesMap[a.id] = a; });
 
         allEmployees = (employees || []).map(e => ({ ...e, erp_employes: ficheMap[e.id] || null }));
         renderEmployeesGrid(allEmployees);
@@ -139,6 +144,10 @@
               <div>
                 <div class="user-card-detail-label">Département</div>
                 <div class="user-card-detail-value">${emp.erp_postes?.department || '-'}</div>
+              </div>
+              <div>
+                <div class="user-card-detail-label">Annexe</div>
+                <div class="user-card-detail-value">${emp.annexe_id ? (annexesMap[emp.annexe_id]?.nom || '-') : '-'}</div>
               </div>
             </div>
           </div>

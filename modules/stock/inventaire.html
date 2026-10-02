@@ -12,10 +12,45 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="/assets/js/supabase.js?v=8"></script>
-  <script src="/assets/js/auth.js?v=8"></script>
-  <script src="/assets/js/layout.js?v=8"></script>
-  <script src="/assets/js/excel.js?v=8"></script>
+  <script src="/assets/js/supabase.js?v=9"></script>
+  <script src="/assets/js/auth.js?v=9"></script>
+  <script src="/assets/js/layout.js?v=9"></script>
+  <script src="/assets/js/excel.js?v=9"></script>
+  <style>
+    .product-thumb {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--clr-border, #E2E8F0);
+      flex-shrink: 0;
+    }
+    .product-thumb-empty {
+      display: inline-grid;
+      place-items: center;
+      background: #F1F5F9;
+      color: #94A3B8;
+      border: 1px dashed var(--clr-border, #E2E8F0);
+    }
+    .product-thumb-empty i { width: 16px; height: 16px; }
+    .product-photo-slot {
+      width: 92px;
+      height: 92px;
+      border: 1.5px dashed var(--clr-border, #CBD5E1);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: var(--clr-text-muted, #94A3B8);
+      background: #F8FAFC;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .product-photo-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  </style>
 </head>
 <body>
   <div class="app-layout">
@@ -190,6 +225,23 @@
             <input type="text" name="description" class="form-input">
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">Photo de l'article</label>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div class="product-photo-slot" id="product-photo-preview">
+              <i data-lucide="image"></i>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="file" id="product-photo-input" accept="image/*" hidden>
+              <button type="button" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" onclick="document.getElementById('product-photo-input').click()">
+                <i data-lucide="upload"></i> Choisir une photo
+              </button>
+              <button type="button" class="btn btn-ghost hidden" id="product-photo-remove" style="padding: 8px 14px; font-size: 13px; color: #DC2626;" onclick="removeProductPhoto()">
+                <i data-lucide="trash-2"></i> Retirer la photo
+              </button>
+            </div>
+          </div>
+        </div>
       </form>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeAddProductModal()">Annuler</button>
@@ -202,6 +254,8 @@
     let allProducts = [];
     let canEdit = false;
     let currentEditId = null;
+    let photoFile = null;
+    let photoRemoved = false;
 
     async function loadProducts() {
       try {
@@ -266,7 +320,14 @@
         return `
           <tr>
             <td>${product.code || '-'}</td>
-            <td>${product.designation}</td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                ${product.image_url
+                  ? `<img src="${product.image_url}" class="product-thumb" alt="">`
+                  : `<span class="product-thumb product-thumb-empty"><i data-lucide="package"></i></span>`}
+                <span>${product.designation}</span>
+              </div>
+            </td>
             <td>${product.categorie || '-'}</td>
             <td>${product.quantite}</td>
             <td>${product.quantite_min}</td>
@@ -306,13 +367,54 @@
       currentEditId = null;
       document.querySelector('#add-product-modal .modal-title').textContent = 'Ajouter un article';
       document.getElementById('add-product-form').reset();
+      resetProductPhoto(null);
       document.getElementById('add-product-modal').classList.remove('hidden');
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     function closeAddProductModal() {
       currentEditId = null;
       document.getElementById('add-product-modal').classList.add('hidden');
       document.getElementById('add-product-form').reset();
+      resetProductPhoto(null);
+    }
+
+    // Photo produit — bucket piblik 'erp-produits'
+    function resetProductPhoto(url) {
+      photoFile = null;
+      photoRemoved = !url;
+      const input = document.getElementById('product-photo-input');
+      if (input) input.value = '';
+      const preview = document.getElementById('product-photo-preview');
+      if (preview) {
+        preview.innerHTML = url
+          ? `<img src="${url}" alt="">`
+          : '<i data-lucide="image"></i>';
+      }
+      const rmBtn = document.getElementById('product-photo-remove');
+      if (rmBtn) rmBtn.classList.toggle('hidden', !url);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function removeProductPhoto() {
+      photoFile = null;
+      photoRemoved = true;
+      const input = document.getElementById('product-photo-input');
+      if (input) input.value = '';
+      const preview = document.getElementById('product-photo-preview');
+      if (preview) preview.innerHTML = '<i data-lucide="image"></i>';
+      const rmBtn = document.getElementById('product-photo-remove');
+      if (rmBtn) rmBtn.classList.add('hidden');
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    async function uploadProductPhoto(file, productId) {
+      const ext = ((file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'jpg';
+      const path = `produits/${productId || 'new'}-${Date.now()}.${ext}`;
+      const { error } = await db.storage.from('erp-produits').upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data } = db.storage.from('erp-produits').getPublicUrl(path);
+      return data.publicUrl;
     }
 
     function editProduct(productId) {
@@ -330,6 +432,7 @@
       form.prix_vente.value = product.prix_vente || 0;
       form.unite.value = product.unite || 'pièce';
       form.description.value = product.description || '';
+      resetProductPhoto(product.image_url || null);
 
       document.querySelector('#add-product-modal .modal-title').textContent = 'Modifier l\'article';
       document.getElementById('add-product-modal').classList.remove('hidden');
@@ -358,6 +461,22 @@
         description: formData.get('description'),
         created_by: window.currentUser?.id
       };
+
+      // Foto: nouvo upload > retire > kenbe ansyen an
+      let imageUrl = null;
+      if (currentEditId) {
+        imageUrl = allProducts.find(p => p.id === currentEditId)?.image_url || null;
+      }
+      if (photoRemoved) imageUrl = null;
+      if (photoFile) {
+        try {
+          imageUrl = await uploadProductPhoto(photoFile, currentEditId);
+        } catch (pe) {
+          console.warn('Photo upload:', pe);
+          alert('La photo n\'a pas pu être enregistrée, l\'article sera sauvegardé sans photo.');
+        }
+      }
+      productData.image_url = imageUrl;
 
       try {
         if (currentEditId) {
@@ -453,6 +572,20 @@
     function formatCurrency(amount) {
       return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG' }).format(amount);
     }
+
+    document.getElementById('product-photo-input').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      photoFile = file;
+      photoRemoved = false;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const preview = document.getElementById('product-photo-preview');
+        if (preview) preview.innerHTML = `<img src="${ev.target.result}" alt="">`;
+        document.getElementById('product-photo-remove')?.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
       initApp().then(() => {

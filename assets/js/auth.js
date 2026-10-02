@@ -46,6 +46,7 @@ const ERP_MODULE_REGISTRY = {
   agenda:       { label: 'Agenda',               icon: 'calendar',         page: null,                                   section: 'Communication' },
   parametres:   { label: 'Paramètres',           icon: 'settings',         page: '/modules/parametres/entreprise.html',  section: 'Administration' },
   users:        { label: 'Utilisateurs',         icon: 'user-cog',         page: '/modules/users/liste.html',            section: 'Administration' },
+  annexes:      { label: 'Annexes',              icon: 'building-2',       page: null,                                   section: 'Administration' },
   // Modules cliniques (physiothérapie, hôpital...)
   patients:     { label: 'Patients',             icon: 'heart-pulse',      page: null,                                   section: 'Clinique' },
   rdv:          { label: 'Rendez-vous',          icon: 'calendar-clock',   page: null,                                   section: 'Clinique' },
@@ -70,9 +71,9 @@ const ERP_MODULE_PERMISSIONS = {
   clients:      ['clients'],
   stock:        ['stock', 'stock_read', 'catalogue'],
   catalogue:    ['catalogue', 'stock', 'stock_read'],
-  finances:     ['finances', 'factures', 'facturation'],
+  finances:     ['finances', 'factures', 'facturation', 'caisse'],
   caisse:       ['caisse', 'finances'],
-  ventes:       ['ventes', 'clients'],
+  ventes:       ['ventes'],
   factures:     ['factures', 'finances'],
   facturation:  ['facturation', 'factures', 'finances'],
   fournisseurs: ['fournisseurs', 'stock'],
@@ -87,6 +88,7 @@ const ERP_MODULE_PERMISSIONS = {
   agenda:       ['agenda', 'messages'],
   parametres:   ['parametres'],
   users:        ['users'],
+  annexes:      ['annexes', 'users', 'parametres'],
   dashboard:    ['dashboard', 'view'],
   // Modules cliniques
   patients:     ['patients', 'clients'],
@@ -118,12 +120,17 @@ const ERP_ROLE_DEFAULT_PERMISSIONS = {
   employe:           { taches_own: true, presences_own: true, messages: true }
 };
 
-// Permissions "larges" — un utilisateur qui n'a QUE des permissions
-// *_own / communication ne doit pas voir les modules métier de l'entreprise
-const ERP_NARROW_PERMISSIONS = ['messages', 'agenda', 'taches_own', 'presences_own'];
+// Comptes de direction: accès total à tous les modules, quel que soit le poste
+const ERP_OWNER_EMAILS = ['haitirecareerp@gmail.com'];
+
+function isErpOwner(user) {
+  return user?.role === 'pdg' || ERP_OWNER_EMAILS.includes(String(user?.email || '').toLowerCase());
+}
 
 // Calcule les permissions effectives: rôle + poste + modules assignés
 async function getEffectivePermissions(user) {
+  if (isErpOwner(user)) return { all: true };
+
   const perms = { ...(ERP_ROLE_DEFAULT_PERMISSIONS[user?.role] || {}) };
 
   const postePerms = user?.erp_postes?.permissions;
@@ -210,25 +217,38 @@ async function getEnterpriseContext(user) {
   }
 
   ctx.modules = [...new Set(ctx.modules)];
+
+  // Sant klinik (physiotherapy/hospital): "clients" = pasyan yo —
+  // retire modil Clients la pou evite doublòn ak modil Patients.
+  if (['physiotherapy', 'hospital'].includes(ctx.type?.code)) {
+    ctx.modules = ctx.modules.filter(m => m !== 'clients');
+  }
   return ctx;
 }
 
-// Vrai si l'utilisateur courant peut accéder au module
+// Vrai si antrepriz la se yon sant klinik (pasyan olye de kliyan)
+function isClinicalEnterprise() {
+  const c = window.enterpriseContext?.type?.code;
+  return c === 'physiotherapy' || c === 'hospital';
+}
+
+// Vrai si l'utilisateur courant peut accéder au module.
+// Seuls la direction (PDG / perms.all) voit tout; les autres ne voient
+// que les modules liés à leur rôle, leur poste ou assignés manuellement.
 function hasModuleAccess(code) {
+  if (isErpOwner(window.currentUser)) return true;
   const perms = window.currentUser?.effective_permissions || {};
   if (perms.all) return true;
 
   const keys = ERP_MODULE_PERMISSIONS[code] || [code];
-  if (keys.some(k => perms[k])) return true;
+  return keys.some(k => perms[k]);
+}
 
-  // Module activé pour l'entreprise: visible sauf profil "restreint"
-  const entModules = window.enterpriseContext?.modules || [];
-  if (entModules.includes(code)) {
-    const hasBroadPerm = Object.keys(perms).some(k => perms[k] && !ERP_NARROW_PERMISSIONS.includes(k));
-    if (hasBroadPerm) return true;
-  }
-
-  return false;
+// Vrai si le module est activé pour l'entreprise ET accessible à l'utilisateur
+function canUseModule(code) {
+  const enabled = window.enterpriseContext?.modules || ERP_CORE_MODULES;
+  if (!isErpOwner(window.currentUser) && !enabled.includes(code)) return false;
+  return hasModuleAccess(code);
 }
 
 // Métadonnées de navigation d'un module — même si le module n'a
@@ -248,15 +268,18 @@ function getModuleNavItem(code) {
 function getVisibleNavModules() {
   const ctx = window.enterpriseContext || { modules: ERP_CORE_MODULES };
   const perms = window.currentUser?.effective_permissions || {};
-  const isFullAccess = Boolean(perms.all || ctx.unlockedAll || window.currentUser?.role === 'pdg');
+  const isFullAccess = Boolean(perms.all || isErpOwner(window.currentUser));
 
   const candidates = isFullAccess
-    ? Object.keys(ERP_MODULE_REGISTRY)
+    ? [...Object.keys(ERP_MODULE_REGISTRY), ...(ctx.modules || [])]
     : [...(ctx.modules || []), 'parametres', 'users'];
 
   const seen = new Set(['dashboard']);
+  const clinical = isClinicalEnterprise();
   const items = [];
   candidates.forEach(code => {
+    // Klinik: modil "clients" kache — modil "patients" ranplase l
+    if (clinical && code === 'clients') return;
     if (seen.has(code) || !hasModuleAccess(code)) return;
     seen.add(code);
     items.push(getModuleNavItem(code));
@@ -281,11 +304,28 @@ function checkPagePermission() {
     return false;
   }
 
+  // Sant klinik: paj "clients" yo -> modil patients (menm bagay)
+  if (isClinicalEnterprise()) {
+    if (/\/modules\/clients\//i.test(path)) {
+      window.location.replace('/module.html?m=patients');
+      return false;
+    }
+    if (/\/module\.html/.test(path)
+        && new URLSearchParams(window.location.search).get('m') === 'clients') {
+      window.location.replace('/module.html?m=patients');
+      return false;
+    }
+  }
+
   // Pages de modules: /modules/<dossier>/<page>.html
   const modMatch = path.match(/\/modules\/([a-z-]+)\//i);
   if (modMatch) {
+    // Chacun peut ouvrir sa propre fiche profil (sans ?id ou id=soi-même)
+    const profileId = new URLSearchParams(window.location.search).get('id');
+    const isOwnProfile = /\/modules\/users\/profil\.html/.test(path)
+      && (!profileId || profileId === window.currentUser?.id);
     const code = ERP_PATH_MODULE[modMatch[1].toLowerCase()] || modMatch[1].toLowerCase();
-    if (!hasModuleAccess(code)) {
+    if (!isOwnProfile && !hasModuleAccess(code)) {
       window.location.href = '/dashboard.html';
       return false;
     }
@@ -535,7 +575,7 @@ function hasPermission(permission) {
     || window.currentUser.erp_postes?.permissions
     || {};
 
-  if (window.currentUser.role === 'pdg' || permissions.all) return true;
+  if (isErpOwner(window.currentUser) || permissions.all) return true;
 
   return Boolean(permissions[permission]);
 }

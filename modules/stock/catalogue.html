@@ -11,9 +11,9 @@
   <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=8"></script>
-  <script src="/assets/js/auth.js?v=8"></script>
-  <script src="/assets/js/layout.js?v=8"></script>
+  <script src="/assets/js/supabase.js?v=9"></script>
+  <script src="/assets/js/auth.js?v=9"></script>
+  <script src="/assets/js/layout.js?v=9"></script>
   <style>
     .share-banner {
       background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
@@ -133,6 +133,48 @@
       color: #2563EB;
       display: grid;
       place-items: center;
+    }
+    .catalog-card-photo {
+      position: relative;
+      height: 150px;
+      border-radius: 10px;
+      background: #F1F5F9;
+      display: grid;
+      place-items: center;
+      color: #94A3B8;
+      overflow: hidden;
+      margin: -4px -4px 14px;
+    }
+    .catalog-card-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .catalog-card-photo > i {
+      width: 36px;
+      height: 36px;
+    }
+    .catalog-photo-btn {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      background: rgba(255, 255, 255, 0.95);
+      border: none;
+      border-radius: 8px;
+      padding: 7px;
+      cursor: pointer;
+      color: #2563EB;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+      transition: transform 0.15s;
+    }
+    .catalog-photo-btn:hover {
+      transform: scale(1.08);
+    }
+    .catalog-photo-btn i {
+      width: 16px;
+      height: 16px;
     }
     .catalog-card-title {
       font-size: 16px;
@@ -281,6 +323,8 @@
     </main>
   </div>
 
+  <input type="file" id="product-photo-file" accept="image/*" hidden>
+
   <div id="toast-copy" class="toast-copy">
     <i data-lucide="check-circle"></i>
     <span>Lien copié dans le presse-papier ! Envoyez-le à vos clients.</span>
@@ -313,17 +357,22 @@
 
       container.innerHTML = products.map(p => `
         <div class="catalog-card">
+          <div class="catalog-card-photo">
+            ${p.image_url
+              ? `<img src="${p.image_url}" alt="${p.designation || ''}">`
+              : '<i data-lucide="package"></i>'}
+            <button class="catalog-photo-btn" title="Changer la photo" onclick="changeProductPhoto('${p.id}')">
+              <i data-lucide="camera"></i>
+            </button>
+          </div>
           <div>
             <div class="catalog-card-header">
-              <div class="catalog-card-icon">
-                <i data-lucide="package"></i>
-              </div>
+              <h3 class="catalog-card-title" style="margin: 0;">${p.designation}</h3>
               <label class="toggle-public">
                 <input type="checkbox" ${p.is_public !== false ? 'checked' : ''} onchange="togglePublicStatus('${p.id}', this.checked)">
                 Visible public
               </label>
             </div>
-            <h3 class="catalog-card-title">${p.designation}</h3>
             <div class="catalog-card-desc">${p.description || 'Équipement orthopédique et matériel de réadaptation.'}</div>
           </div>
           <div class="catalog-card-meta">
@@ -335,6 +384,39 @@
 
       lucide.createIcons();
     }
+
+    // Foto pwodwi — bucket piblik 'erp-produits'
+    let _photoTargetId = null;
+
+    function changeProductPhoto(productId) {
+      _photoTargetId = productId;
+      document.getElementById('product-photo-file').click();
+    }
+
+    async function uploadProductPhoto(file, productId) {
+      const ext = ((file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'jpg';
+      const path = `produits/${productId}-${Date.now()}.${ext}`;
+      const { error } = await db.storage.from('erp-produits').upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data } = db.storage.from('erp-produits').getPublicUrl(path);
+      return data.publicUrl;
+    }
+
+    document.getElementById('product-photo-file').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file || !_photoTargetId) return;
+      try {
+        const url = await uploadProductPhoto(file, _photoTargetId);
+        await db.from('erp_produits').update({ image_url: url }).eq('id', _photoTargetId);
+        const p = allCatalogProducts.find(x => x.id === _photoTargetId);
+        if (p) p.image_url = url;
+        applyCatalogFilters();
+      } catch (err) {
+        console.error('Upload photo error:', err);
+        alert('La photo n\'a pas pu être enregistrée.');
+      }
+    });
 
     async function togglePublicStatus(productId, isPublic) {
       try {

@@ -78,39 +78,43 @@ async function initModularDashboard() {
     const typeIcon = ctx.type?.icon || 'building';
     const firstName = currentUser?.first_name || 'Utilisateur';
     const lastName = currentUser?.last_name || '';
-    const userRole = (currentUser?.role || 'employe').toUpperCase();
+    const userRole = currentUser?.erp_postes?.name
+      || (typeof formatRole === 'function' ? formatRole(currentUser?.role || 'employe') : (currentUser?.role || 'employe').toUpperCase());
     const currency = settings?.default_currency || 'HTG';
 
-    // 5. Donnees reelles (chargees seulement si les modules sont actives)
+    // 5. Donnees reelles — chargees seulement pour les modules que
+    //    l'utilisateur peut utiliser (le PDG voit tout, un medecin ou
+    //    un employe ne voit que ce qui concerne son poste)
     const enabled = ctx.modules || [];
-    const has = (c) => enabled.includes(c);
+    const has = (c) => typeof canUseModule === 'function' ? canUseModule(c) : enabled.includes(c);
+    const isClinical = typeCode === 'physiotherapy' || typeCode === 'hospital';
+    const peopleModule = isClinical ? 'patients' : 'clients';
 
     let clients = [];
     let produits = [];
     let usersCount = 1;
     let tachesCount = 0;
 
-    if (has('clients') || has('patients') || has('etudiants') || has('ventes')) {
+    if (has(peopleModule)) {
       try {
-        // Centres de soins: la liste vient des dossiers patients
-        const clientTable = (typeCode === 'physiotherapy' || typeCode === 'hospital')
-          ? 'erp_patients' : 'erp_clients';
-        const { data } = await db.from(clientTable).select('*').order('created_at', { ascending: false }).limit(6);
+        const { data } = await db.from(`erp_${peopleModule}`).select('*').order('created_at', { ascending: false }).limit(6);
         if (data) clients = data;
       } catch (e) { console.warn('Clients:', e); }
     }
 
-    if (has('stock') || has('catalogue') || has('pharmacie') || has('menu') || has('materiel')) {
+    if (has('stock') || has('catalogue') || has('pharmacie') || has('materiel_orthopedique')) {
       try {
         const { data } = await db.from('erp_produits').select('*').order('created_at', { ascending: false }).limit(6);
         if (data) produits = data;
       } catch (e) { console.warn('Produits:', e); }
     }
 
-    try {
-      const { count } = await db.from('erp_users').select('id', { count: 'exact', head: true });
-      if (count) usersCount = count;
-    } catch (e) { console.warn('Users count:', e); }
+    if (has('users') || has('rh') || has('employes')) {
+      try {
+        const { count } = await db.from('erp_users').select('id', { count: 'exact', head: true });
+        if (count) usersCount = count;
+      } catch (e) { console.warn('Users count:', e); }
+    }
 
     if (has('taches') || has('projets')) {
       try {
@@ -121,10 +125,10 @@ async function initModularDashboard() {
 
     // 6. Rendu dynamique
     renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName, userRole });
-    renderDynamicStats({ clientsCount: clients.length, produitsCount: produits.length, usersCount, tachesCount, currency, modules: enabled });
+    renderDynamicStats({ clientsCount: clients.length, produitsCount: produits.length, usersCount, tachesCount, currency, has, peopleModule });
     renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole });
     renderDynamicQuickActions();
-    renderDynamicContent({ produits, clients, modules: enabled, currency });
+    renderDynamicContent({ produits, clients, has, peopleModule, currency });
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
     setupDashboardMobileNav();
@@ -206,14 +210,13 @@ function renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, fir
 // --------------------------------------------------------------
 // Cartes KPI — generees selon les modules actives
 // --------------------------------------------------------------
-function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCount, currency, modules }) {
+function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCount, currency, has, peopleModule }) {
   const statsContainer = document.getElementById('dynamic-stats');
   if (!statsContainer) return;
 
   const cards = [];
-  const has = (c) => modules.includes(c);
 
-  if (has('stock') || has('catalogue') || has('pharmacie') || has('menu') || has('materiel') || has('production')) {
+  if (has('stock') || has('catalogue') || has('pharmacie') || has('materiel_orthopedique')) {
     cards.push({
       icon: 'package', color: '#3b82f6',
       value: produitsCount,
@@ -222,16 +225,16 @@ function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCou
     });
   }
 
-  if (has('clients') || has('patients') || has('etudiants') || has('ventes') || has('commandes')) {
+  if (has(peopleModule)) {
     cards.push({
-      icon: has('patients') ? 'heart-pulse' : 'users', color: '#10b981',
+      icon: peopleModule === 'patients' ? 'heart-pulse' : 'users', color: '#10b981',
       value: clientsCount,
       label: `${erpTerm('clients', 'Clients')} Enregistrés`,
       badge: 'Portefeuille'
     });
   }
 
-  if (has('taches') || has('projets') || has('chantiers')) {
+  if (has('taches') || has('projets')) {
     cards.push({
       icon: 'check-square', color: '#f59e0b',
       value: tachesCount,
@@ -249,12 +252,19 @@ function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCou
     });
   }
 
-  cards.push({
-    icon: 'user-check', color: '#8b5cf6',
-    value: usersCount,
-    label: `${erpTerm('users', 'Collaborateurs')} & Rôles`,
-    badge: 'Équipe'
-  });
+  if (has('users') || has('rh') || has('employes')) {
+    cards.push({
+      icon: 'user-check', color: '#8b5cf6',
+      value: usersCount,
+      label: `${erpTerm('users', 'Collaborateurs')} & Rôles`,
+      badge: 'Équipe'
+    });
+  }
+
+  if (!cards.length) {
+    statsContainer.style.display = 'none';
+    return;
+  }
 
   statsContainer.innerHTML = cards.map(c => `
     <div class="stat-card" style="--accent: ${c.color}">
@@ -270,25 +280,39 @@ function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCou
   `).join('');
 }
 
+// Modules tries par section (sections non listees inserees avant 'Administration')
+const DASH_SECTION_ORDER = ['Principal', 'Clinique', 'Gestion', 'Site Web', 'RH', 'Communication', 'Rapports', 'Modules', 'Administration'];
+
+function groupNavItems(items) {
+  const grouped = {};
+  items.forEach(item => {
+    if (!grouped[item.section]) grouped[item.section] = [];
+    grouped[item.section].push(item);
+  });
+
+  const orderedSections = DASH_SECTION_ORDER.filter(s => s !== 'Principal' && grouped[s]);
+  const extraSections = Object.keys(grouped).filter(s => !DASH_SECTION_ORDER.includes(s));
+  const adminIdx = orderedSections.indexOf('Administration');
+  const allSections = adminIdx === -1
+    ? [...orderedSections, ...extraSections]
+    : [...orderedSections.slice(0, adminIdx), ...extraSections, ...orderedSections.slice(adminIdx)];
+
+  return allSections.map(section => ({
+    section,
+    title: section === 'Modules' ? 'Modules métier' : section,
+    items: grouped[section]
+  }));
+}
+
 // --------------------------------------------------------------
-// Sidebar — 100% dynamique depuis les modules de l'entreprise
+// Sidebar — modules autorisés pour l'utilisateur, rangés par section
 // --------------------------------------------------------------
 function renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole }) {
   const sidebarContainer = document.getElementById('dynamic-sidebar');
   if (!sidebarContainer) return;
 
   const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || 'U';
-
-  // Navigation dynamique: modules tries par section
-  // Les sections non listees sont inserees avant 'Administration'
-  const SECTION_ORDER = ['Principal', 'Clinique', 'Gestion', 'Site Web', 'RH', 'Communication', 'Rapports', 'Modules', 'Administration'];
   const items = typeof getVisibleNavModules === 'function' ? getVisibleNavModules() : [];
-
-  const grouped = {};
-  items.forEach(item => {
-    if (!grouped[item.section]) grouped[item.section] = [];
-    grouped[item.section].push(item);
-  });
 
   let navHtml = `
     <div class="dash-nav-section">Principal</div>
@@ -298,16 +322,9 @@ function renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, use
     </a>
   `;
 
-  const orderedSections = SECTION_ORDER.filter(s => s !== 'Principal' && grouped[s]);
-  const extraSections = Object.keys(grouped).filter(s => !SECTION_ORDER.includes(s));
-  const adminIdx = orderedSections.indexOf('Administration');
-  const allSections = adminIdx === -1
-    ? [...orderedSections, ...extraSections]
-    : [...orderedSections.slice(0, adminIdx), ...extraSections, ...orderedSections.slice(adminIdx)];
-
-  allSections.forEach(section => {
-    navHtml += `<div class="dash-nav-section">${section === 'Modules' ? 'Modules métier' : section}</div>`;
-    grouped[section].forEach(item => {
+  groupNavItems(items).forEach(group => {
+    navHtml += `<div class="dash-nav-section">${group.title}</div>`;
+    group.items.forEach(item => {
       const href = item.page.startsWith('/') ? item.page.slice(1) : item.page;
       navHtml += `
         <a href="${href}" class="dash-nav-item">
@@ -373,7 +390,11 @@ const ERP_QUICK_ACTIONS = {
   users:      { label: 'Équipe & Accès',   desc: 'Gérer les collaborateurs',             color: '#8b5cf6' },
   parametres: { label: 'Paramètres',       desc: 'Configurer votre entreprise',          color: '#64748b' },
   siteweb:    { label: 'Site Web',         desc: 'RDV en ligne, annonces & messages',    color: '#2563eb' },
-  annonces:   { label: 'Annonces',         desc: 'Modérer achat/vente de matériel',      color: '#0d9488' }
+  annonces:   { label: 'Annonces',         desc: 'Modérer achat/vente de matériel',      color: '#0d9488' },
+  ordonnances:{ label: 'Ordonnance',       desc: 'Rédiger une prescription',             color: '#6366f1' },
+  pharmacie:  { label: 'Pharmacie',        desc: 'Médicaments et dates d\'expiration',   color: '#10b981' },
+  presences:  { label: 'Ma Présence',      desc: 'Pointer mon arrivée / départ',         color: '#0ea5e9' },
+  messages:   { label: 'Messages',         desc: 'Discuter avec l\'équipe',              color: '#64748b' }
 };
 
 function renderDynamicQuickActions() {
@@ -384,10 +405,12 @@ function renderDynamicQuickActions() {
     .filter(i => ERP_QUICK_ACTIONS[i.code])
     .slice(0, 4);
 
-  const fallback = getModuleNavItem('parametres');
-  const list = items.length ? items : [fallback];
+  if (!items.length) {
+    actionsContainer.style.display = 'none';
+    return;
+  }
 
-  actionsContainer.innerHTML = list.map(item => {
+  actionsContainer.innerHTML = items.map(item => {
     const qa = ERP_QUICK_ACTIONS[item.code];
     const href = item.page.startsWith('/') ? item.page.slice(1) : item.page;
     return `
@@ -405,11 +428,10 @@ function renderDynamicQuickActions() {
 // --------------------------------------------------------------
 // Contenu principal — sections selon les modules actives
 // --------------------------------------------------------------
-function renderDynamicContent({ produits, clients, modules, currency }) {
+function renderDynamicContent({ produits, clients, has, peopleModule, currency }) {
   const contentContainer = document.getElementById('dynamic-content');
   if (!contentContainer) return;
 
-  const has = (c) => modules.includes(c);
   const money = (v) => `${v || 0} ${currency}`;
 
   const produitsHtml = produits.length > 0 ? produits.map(p => `
@@ -447,7 +469,7 @@ function renderDynamicContent({ produits, clients, modules, currency }) {
 
   let html = '';
 
-  if (has('stock') || has('catalogue') || has('pharmacie') || has('menu') || has('materiel')) {
+  if (has('stock') || has('catalogue')) {
     html += `
       <div class="section-card">
         <div class="section-header">
@@ -472,37 +494,41 @@ function renderDynamicContent({ produits, clients, modules, currency }) {
     `;
   }
 
-  if (has('clients') || has('patients') || has('etudiants') || has('ventes')) {
+  if (has(peopleModule)) {
+    const peoplePage = getModuleNavItem(peopleModule).page.replace(/^\//, '');
     html += `
       <div class="section-card">
         <div class="section-header">
           <h2 class="section-title">${erpTerm('clients', 'Clients')} Récents</h2>
-          <a href="modules/clients/liste.html" class="section-link">Voir tout &rarr;</a>
+          <a href="${peoplePage}" class="section-link">Voir tout &rarr;</a>
         </div>
         <div>${clientsHtml}</div>
       </div>
     `;
   }
 
-  // Si aucune des sections standard n'est active, afficher la grille des modules
-  if (!html) {
-    const items = typeof getVisibleNavModules === 'function' ? getVisibleNavModules() : [];
-    html = `
+  // Grille "Mes modules": uniquement les modules autorisés pour cet utilisateur
+  const items = typeof getVisibleNavModules === 'function' ? getVisibleNavModules() : [];
+  if (items.length) {
+    html += `
       <div class="section-card full">
         <div class="section-header">
-          <h2 class="section-title">Vos Modules</h2>
+          <h2 class="section-title">${isErpOwner(window.currentUser) ? 'Tous les modules' : 'Mes modules'}</h2>
         </div>
-        <div class="module-grid">
-          ${items.map(item => {
-            const href = item.page.startsWith('/') ? item.page.slice(1) : item.page;
-            return `
-              <a href="${href}" class="module-tile">
-                <i data-lucide="${item.icon}"></i>
-                ${item.label}
-              </a>
-            `;
-          }).join('')}
-        </div>
+        ${groupNavItems(items).map(group => `
+          <div class="dash-nav-section" style="margin: 18px 0 10px 2px; color: var(--clr-text-muted);">${group.title}</div>
+          <div class="module-grid">
+            ${group.items.map(item => {
+              const href = item.page.startsWith('/') ? item.page.slice(1) : item.page;
+              return `
+                <a href="${href}" class="module-tile">
+                  <i data-lucide="${item.icon}"></i>
+                  ${item.label}
+                </a>
+              `;
+            }).join('')}
+          </div>
+        `).join('')}
       </div>
     `;
   }

@@ -11,9 +11,11 @@
   <link rel="stylesheet" href="/assets/css/dashboard.css?v=8">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/assets/js/supabase.js?v=8"></script>
-  <script src="/assets/js/auth.js?v=8"></script>
-  <script src="/assets/js/layout.js?v=8"></script>
+  <script src="/assets/js/supabase.js?v=9"></script>
+  <script src="/assets/js/auth.js?v=9"></script>
+  <script src="/assets/js/layout.js?v=9"></script>
+  <script src="/assets/js/annexes.js?v=10"></script>
+  <script src="/assets/js/patients.js?v=10"></script>
 </head>
 <body>
   <!-- Page de module GENERIQUE.
@@ -120,12 +122,36 @@
       }
     }
 
+    // Champs du formulaire quand la table est encore vide (cf. sql/13_modules_complets.sql)
+    const MODULE_FIELDS = {
+      pharmacie:           ['medicament', 'forme', 'dosage', 'quantite', 'prix_unitaire', 'date_expiration', 'lot', 'fournisseur'],
+      fournisseurs:        ['nom', 'contact', 'phone', 'email', 'adresse', 'categorie', 'notes'],
+      factures:            ['client_nom', 'numero', 'date_facture', 'montant', 'devise', 'statut', 'notes'],
+      facturation_medical: ['patient_nom', 'service', 'date_facture', 'montant', 'devise', 'mode_paiement', 'statut', 'notes'],
+      ordonnances:         ['patient_nom', 'medecin', 'date_ordonnance', 'prescription', 'posologie', 'duree', 'notes'],
+      agenda:              ['titre', 'date_event', 'heure_debut', 'heure_fin', 'lieu', 'description'],
+      ventes:              ['designation', 'client_nom', 'quantite', 'prix_unitaire', 'total', 'statut'],
+      patients:            ['nom', 'prenom', 'date_naissance', 'sexe', 'phone', 'email', 'adresse', 'diagnostic'],
+      services:            ['name', 'category', 'price', 'devise', 'duration_min', 'description'],
+      rdv:                 ['patient_nom', 'patient_prenom', 'patient_phone', 'date_rdv', 'heure_rdv', 'motif', 'notes'],
+      seances:             ['date_seance', 'heure', 'duree_min', 'type_seance', 'observations'],
+      protheses:           ['type_prothese', 'membre', 'etape', 'cout', 'notes'],
+      ortheses:            ['type_orthese', 'zone', 'etape', 'cout', 'notes']
+    };
+
     function inferColumns(rows) {
       if (rows.length) {
         return Object.keys(rows[0]).filter(c => !SYSTEM_COLUMNS.includes(c));
       }
-      // Table vide: colonnes generiques plausibles
-      return ['nom', 'description'];
+      return MODULE_FIELDS[moduleCode] || ['nom', 'description'];
+    }
+
+    function inputType(c) {
+      if (/^(date|date_)/.test(c)) return 'date';
+      if (/^heure/.test(c)) return 'time';
+      if (/^(prix|price|montant|quantite|total|cout|seuil|duree_min|duration_min)/.test(c)) return 'number';
+      if (c === 'email') return 'email';
+      return 'text';
     }
 
     function renderTable(rows, columns) {
@@ -167,7 +193,7 @@
                 ${editable.map(c => `
                   <div class="form-group">
                     <label class="form-label">${prettify(c)}</label>
-                    <input type="text" name="${c}" class="form-input">
+                    <input type="${inputType(c)}" name="${c}" class="form-input"${inputType(c) === 'number' ? ' step="any"' : ''}>
                   </div>
                 `).join('')}
               </div>
@@ -194,6 +220,17 @@
       moduleMeta = await loadModuleMeta(moduleCode);
       titleEl.textContent = moduleMeta.name;
       document.title = `${moduleMeta.name} - HAITI REH-CARE ERP`;
+
+      // Modil ki gen renderer dedye (dosye pasyan konplè, jestion annex)
+      const CUSTOM = {
+        patients: typeof renderPatientsModule === 'function' ? renderPatientsModule : null,
+        annexes:  typeof renderAnnexesModule === 'function' ? renderAnnexesModule : null
+      };
+      if (CUSTOM[moduleCode]) {
+        await CUSTOM[moduleCode](container, moduleMeta);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+      }
 
       const { supported, rows } = await loadModuleData(moduleCode);
       tableColumns = inferColumns(rows);
@@ -252,6 +289,11 @@
               Ce module est activé pour votre centre. Son interface dédiée sera
               configurée par l'administration de HAITI REH-CARE.
             </p>
+            ${isErpOwner(window.currentUser) ? `
+              <p style="color: var(--clr-text-muted, #94a3b8); max-width: 480px; margin: 12px auto 0; font-size: 13px;">
+                Table <code>${tableName}</code> introuvable dans la base de données —
+                exécutez <code>sql/13_modules_complets.sql</code> dans Supabase.
+              </p>` : ''}
             <a href="/dashboard.html" class="btn btn-secondary" style="display: inline-flex; margin-top: 24px; text-decoration: none;">
               <i data-lucide="arrow-left"></i> Retour au tableau de bord
             </a>

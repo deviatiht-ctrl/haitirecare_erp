@@ -37,7 +37,9 @@ Open the SQL Editor in Supabase and run these files **in this exact order**:
 7. **09_fixes.sql** - Fixes (roles check, sectorial modules)
 8. **10_haiti_rehcare.sql** - HAITI REH-CARE enterprise + clinical tables (patients, rdv, séances, prothèses, orthèses) + seed
 9. **11_portal.sql** - Public portal: patient accounts, annonces (achat/vente), staff creation fix, logo storage policies
-10. **12_cleanup.sql** - (OPTIONNEL) Retire les objets CVisual d'une base existante. Le système fonctionne sans ce fichier.
+10. **13_modules_complets.sql** - Tables for Pharmacie, Fournisseurs, Factures, Facturation Médicale, Ordonnances, Agenda + full access for `haitirecareerp@gmail.com` (PDG)
+11. **12_cleanup.sql** - (OPTIONNEL) Retire les objets CVisual d'une base existante. Le système fonctionne sans ce fichier.
+12. **14_annexes_patients.sql** - Annexes/succursales (`erp_annexes`, `erp_users.annexe_id`), code patient auto par annexe (`PAP-0001`), dossier patient complet (fiches 1-9) + `erp_patient_reevaluations` (fiche 10)
 
 ### 5. Verify the Setup
 After running all SQL files:
