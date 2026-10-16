@@ -16,6 +16,11 @@
   <script src="/assets/js/layout.js?v=10"></script>
   <script src="/assets/js/annexes.js?v=11"></script>
   <script src="/assets/js/patients.js?v=11"></script>
+  <script src="/assets/js/branch.js?v=12"></script>
+  <script src="/assets/js/clinique.js?v=12"></script>
+  <script src="/assets/js/caisse_ops.js?v=12"></script>
+  <script src="/assets/js/ops.js?v=12"></script>
+  <script src="/assets/js/rapports_mensuels.js?v=12"></script>
 </head>
 <body>
   <!-- Page de module GENERIQUE.
@@ -114,7 +119,11 @@
       // Convention: les donnees d'un module vivent dans erp_<code>
       tableName = `erp_${code}`;
       try {
-        const { data, error } = await db.from(tableName).select('*').order('created_at', { ascending: false }).limit(50);
+        // Filtre annex otomatik sou tab "branch-scoped" (RLS la fè menm bagay sou sèvè a)
+        const q = (typeof erpSelect === 'function')
+          ? erpSelect(tableName, '*')
+          : db.from(tableName).select('*');
+        const { data, error } = await q.order('created_at', { ascending: false }).limit(50);
         if (error) return { supported: false, rows: [] };
         return { supported: true, rows: data || [] };
       } catch (e) {
@@ -223,8 +232,17 @@
 
       // Modil ki gen renderer dedye (dosye pasyan konplè, jestion annex)
       const CUSTOM = {
-        patients: typeof renderPatientsModule === 'function' ? renderPatientsModule : null,
-        annexes:  typeof renderAnnexesModule === 'function' ? renderAnnexesModule : null
+        patients:          typeof renderPatientsModule === 'function' ? renderPatientsModule : null,
+        annexes:           typeof renderAnnexesModule === 'function' ? renderAnnexesModule : null,
+        rdv:               typeof renderRdvModule === 'function' ? renderRdvModule : null,
+        consultations:     typeof renderConsultationsModule === 'function' ? renderConsultationsModule : null,
+        seances:           typeof renderSeancesModule === 'function' ? renderSeancesModule : null,
+        atelier:           typeof renderAtelierModule === 'function' ? renderAtelierModule : null,
+        encaissements:     typeof renderEncaissementsModule === 'function' ? renderEncaissementsModule : null,
+        service_client:    typeof renderServiceClientModule === 'function' ? renderServiceClientModule : null,
+        achats:            typeof renderAchatsModule === 'function' ? renderAchatsModule : null,
+        audit:             typeof renderAuditModule === 'function' ? renderAuditModule : null,
+        rapports_mensuels: typeof renderRapportsMensuelsModule === 'function' ? renderRapportsMensuelsModule : null
       };
       if (CUSTOM[moduleCode]) {
         await CUSTOM[moduleCode](container, moduleMeta);
@@ -271,7 +289,11 @@
               if (v !== null && v !== '') record[c] = v;
             });
             if (!Object.keys(record).length) return;
-            const { error } = await db.from(tableName).insert(record);
+            // Stamp annex sou insert — selman si tab la gen kolòn nan
+            // (RLS/trigger sèvè verifye; tab san annexe_id pa dwe resevwa li)
+            const scoped = typeof tableHasBranch === 'function' && tableHasBranch(tableName);
+            const payload = (scoped && typeof withBranch === 'function') ? withBranch(record) : record;
+            const { error } = await db.from(tableName).insert(payload);
             if (error) {
               alert('Erreur: ' + error.message);
             } else {

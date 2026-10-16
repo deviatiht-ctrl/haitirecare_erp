@@ -59,6 +59,15 @@ async function initModularDashboard() {
 
     window.currentUser = currentUser;
 
+    // Kontèks multi-annexes: patch db.from + rezoud vi aktif la
+    // (branch.js chaje dinamikman via auth.js — switcher monte apre header la)
+    try {
+      if (typeof loadBranchSupport === 'function') await loadBranchSupport();
+      if (typeof initBranchContext === 'function') await initBranchContext(currentUser);
+    } catch (e) {
+      console.warn('[branch] init:', e);
+    }
+
     // 2. Permissions effectives + contexte entreprise (modules actives)
     if (!currentUser.effective_permissions && typeof getEffectivePermissions === 'function') {
       currentUser.effective_permissions = await getEffectivePermissions(currentUser);
@@ -125,10 +134,12 @@ async function initModularDashboard() {
 
     // 6. Rendu dynamique
     renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName, userRole });
+    if (typeof renderBranchSwitcher === 'function') renderBranchSwitcher();
     renderDynamicStats({ clientsCount: clients.length, produitsCount: produits.length, usersCount, tachesCount, currency, has, peopleModule });
     renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole });
     renderDynamicQuickActions();
     renderDynamicContent({ produits, clients, has, peopleModule, currency });
+    renderBranchComparison();
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
     setupDashboardMobileNav();
@@ -534,6 +545,73 @@ function renderDynamicContent({ produits, clients, has, peopleModule, currency }
   }
 
   contentContainer.innerHTML = html;
+}
+
+// --------------------------------------------------------------
+// Konparezon annex — direksyon sèlman, vi "Consolidé"
+// --------------------------------------------------------------
+async function renderBranchComparison() {
+  try {
+    if (typeof canSwitchBranch !== 'function' || !canSwitchBranch(window.currentUser)) return;
+    if (window.erpActiveBranchView !== 'all') return;
+    const annexes = window.erpAnnexes || [];
+    if (annexes.length < 2) return;
+
+    const container = document.getElementById('dynamic-content');
+    if (!container) return;
+
+    const monthStart = new Date().toISOString().slice(0, 8) + '01';
+    const rows = await Promise.all(annexes.map(async a => {
+      const [p, r, e] = await Promise.all([
+        db.from('erp_patients').select('id', { count: 'exact', head: true }).eq('annexe_id', a.id),
+        db.from('erp_rdv').select('id', { count: 'exact', head: true }).eq('annexe_id', a.id).gte('date_rdv', monthStart),
+        db.from('erp_encaissements').select('montant').eq('annexe_id', a.id)
+          .eq('statut', 'paye').gte('date_doc', monthStart)
+      ]);
+      return {
+        nom: `${a.code} — ${a.nom}`,
+        patients: p.count || 0,
+        rdv: r.count || 0,
+        enc: (e.data || []).reduce((s, x) => s + parseFloat(x.montant || 0), 0)
+      };
+    }));
+
+    const fmt = (v) => typeof window.erpFmtMoney === 'function'
+      ? window.erpFmtMoney(v)
+      : `${Number(v).toLocaleString('fr-HT')} HTG`;
+
+    const card = document.createElement('div');
+    card.className = 'section-card full';
+    card.innerHTML = `
+      <div class="section-header">
+        <h2 class="section-title"><i data-lucide="building-2" style="width:18px;height:18px;vertical-align:-3px;"></i>
+          Comparatif des annexes — ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
+        <a href="module.html?m=rapports_mensuels" class="section-link">Rapports mensuels &rarr;</a>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="dash-table">
+          <thead><tr><th>Annexe</th><th>Patients</th><th>RDV ce mois</th><th>Encaissé ce mois</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td class="td-strong">${r.nom}</td>
+              <td>${r.patients}</td>
+              <td>${r.rdv}</td>
+              <td class="td-success">${fmt(r.enc)}</td>
+            </tr>`).join('')}
+            <tr style="font-weight:700;">
+              <td class="td-accent">Consolidé</td>
+              <td>${rows.reduce((s, r) => s + r.patients, 0)}</td>
+              <td>${rows.reduce((s, r) => s + r.rdv, 0)}</td>
+              <td class="td-success">${fmt(rows.reduce((s, r) => s + r.enc, 0))}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+    container.prepend(card);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  } catch (e) {
+    console.warn('[branch] comparatif:', e);
+  }
 }
 
 // Fonction de déconnexion

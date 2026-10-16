@@ -187,7 +187,7 @@ CREATE POLICY "seances_update" ON erp_seances FOR UPDATE USING (
 -- Reevalidasyon pasyan (li sèlman — direksyon + sekretè modifye)
 DROP POLICY IF EXISTS "reeval_select" ON erp_patient_reevaluations;
 CREATE POLICY "reeval_select" ON erp_patient_reevaluations FOR SELECT USING (
-  created_by = auth.uid() OR praticien_id = auth.uid()
+  created_by = auth.uid()
   OR erp_has_role(ARRAY['pdg','directrice','directeur','manager','secretaire','receptionniste','employe','comptable','rh'])
 );
 

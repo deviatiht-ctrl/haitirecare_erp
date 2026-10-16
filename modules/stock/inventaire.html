@@ -250,6 +250,47 @@
     </div>
   </div>
 
+  <!-- Movement Modal — Prélèvement (sortie) / Entrée rapide -->
+  <div id="movement-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="movement-modal-title">Mouvement de stock</h3>
+        <button class="modal-close" onclick="closeMovementModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="movement-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Article</label>
+          <input type="text" id="movement-product-name" class="form-input" disabled>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Quantité *</label>
+            <input type="number" name="quantite" class="form-input" min="1" step="any" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Motif *</label>
+            <select name="motif" class="form-select form-input" id="movement-motif" required></select>
+          </div>
+        </div>
+        <div class="form-group hidden" id="movement-dest-wrap">
+          <label class="form-label">Annexe de destination *</label>
+          <select name="dest_annexe" class="form-select form-input" id="movement-dest"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-input form-textarea" rows="2"
+                    placeholder="Qui prend le matériel, pour quelle utilisation…"></textarea>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeMovementModal()">Annuler</button>
+        <button class="btn btn-primary" id="movement-submit-btn" onclick="submitMovement()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let allProducts = [];
     let canEdit = false;
@@ -336,7 +377,13 @@
             <td><span class="badge badge-${status.class}">${status.label}</span></td>
             <td>
               <div class="table-actions">
+                <button class="table-action-btn" title="Prélever (sortie de matériel)" onclick="openMovementModal('${product.id}','sortie')">
+                  <i data-lucide="circle-minus"></i>
+                </button>
                 ${canEdit ? `
+                  <button class="table-action-btn" title="Entrée de stock" onclick="openMovementModal('${product.id}','entree')">
+                    <i data-lucide="circle-plus"></i>
+                  </button>
                   <button class="table-action-btn" title="Modifier" onclick="editProduct('${product.id}')">
                     <i data-lucide="edit"></i>
                   </button>
@@ -507,6 +554,141 @@
       }
     }
 
+    // ============================================================
+    // MOUVMAN STOCK — Prélèvement (sortie) / Entrée rapid
+    // Insert nan erp_stock_movements → trigger SQL mete quantite
+    // ajou otomatikman. "Transfert d'annexe" pase pa RPC la
+    // (li kreye mouvman sòti + antre nan destinasyon an).
+    // ============================================================
+    let allAnnexes = [];
+    let movementProduct = null;
+    let movementType = 'sortie';
+
+    const MOTIFS_SORTIE = [
+      ['vente', 'Vente'],
+      ['usage_interne', 'Consommation interne'],
+      ['casse_perime', 'Cassé / Périmé'],
+      ['transfert_annexe', "Transfert d'annexe"],
+      ['retour', 'Retour fournisseur'],
+      ['autre', 'Autre']
+    ];
+    const MOTIFS_ENTREE = [
+      ['achat', 'Achat fournisseur'],
+      ['retour_client', 'Retour client'],
+      ['ajustement', 'Ajustement inventaire'],
+      ['autre', 'Autre']
+    ];
+
+    async function loadAnnexes() {
+      try {
+        const { data } = await db.from('erp_annexes')
+          .select('id, code, nom').eq('is_active', true).order('code');
+        allAnnexes = data || [];
+      } catch (e) { allAnnexes = []; }
+    }
+
+    // Menm wòl yo ak RPC erp_transfer_stock la
+    function canTransferStock() {
+      return ['pdg', 'directrice', 'directeur', 'manager', 'responsable_stock']
+        .includes(window.currentUser?.role)
+        || (typeof isErpOwner === 'function' && isErpOwner(window.currentUser));
+    }
+
+    function openMovementModal(productId, type) {
+      movementProduct = allProducts.find(p => p.id === productId);
+      if (!movementProduct) return;
+      movementType = type;
+
+      const form = document.getElementById('movement-form');
+      form.reset();
+
+      let motifs = type === 'sortie' ? MOTIFS_SORTIE : MOTIFS_ENTREE;
+      // "Transfert d'annexe" rezève (RPC erp_transfer_stock): direksyon,
+      // manager ak responsable_stock sèlman
+      if (!canTransferStock()) {
+        motifs = motifs.filter(([v]) => v !== 'transfert_annexe');
+      }
+      document.getElementById('movement-motif').innerHTML =
+        motifs.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+
+      document.getElementById('movement-product-name').value =
+        `${movementProduct.code ? movementProduct.code + ' - ' : ''}${movementProduct.designation} (stock: ${movementProduct.quantite})`;
+      document.getElementById('movement-modal-title').textContent =
+        type === 'sortie' ? 'Prélèvement (sortie de matériel)' : 'Entrée de stock';
+      document.getElementById('movement-submit-btn').innerHTML =
+        type === 'sortie' ? '<i data-lucide="circle-minus"></i> Enregistrer la sortie'
+                          : '<i data-lucide="circle-plus"></i> Enregistrer l\'entrée';
+
+      // Annex destinasyon (selman pou transfè) — retire annex aktyèl la
+      const current = (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null)
+                      || movementProduct.annexe_id;
+      document.getElementById('movement-dest').innerHTML =
+        allAnnexes.filter(a => a.id !== current)
+          .map(a => `<option value="${a.id}">${a.code} — ${a.nom}</option>`).join('');
+      document.getElementById('movement-dest-wrap').classList.add('hidden');
+
+      document.getElementById('movement-modal').classList.remove('hidden');
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeMovementModal() {
+      document.getElementById('movement-modal').classList.add('hidden');
+      document.getElementById('movement-form').reset();
+      movementProduct = null;
+    }
+
+    async function submitMovement() {
+      if (!movementProduct) return;
+      const fd = new FormData(document.getElementById('movement-form'));
+      const quantite = parseFloat(fd.get('quantite'));
+      const motif = fd.get('motif');
+
+      if (!quantite || quantite <= 0) return alert('Quantité invalide');
+      if (!motif) return alert('Le motif est obligatoire');
+      if (movementType === 'sortie' && quantite > parseFloat(movementProduct.quantite || 0)) {
+        return alert(`Stock insuffisant. Disponible: ${movementProduct.quantite}`);
+      }
+
+      const btn = document.getElementById('movement-submit-btn');
+      btn.disabled = true;
+      try {
+        if (movementType === 'sortie' && motif === 'transfert_annexe') {
+          const dest = fd.get('dest_annexe');
+          if (!dest) { alert("Choisir l'annexe de destination"); btn.disabled = false; return; }
+          const { error } = await db.rpc('erp_transfer_stock', {
+            p_produit_id: movementProduct.id,
+            p_quantite: quantite,
+            p_dest_annexe_id: dest,
+            p_motif: fd.get('notes') || 'Transfert entre annexes'
+          });
+          if (error) throw error;
+        } else {
+          const { error } = await db.from('erp_stock_movements').insert({
+            produit_id: movementProduct.id,
+            type: movementType,
+            quantite,
+            motif,
+            notes: fd.get('notes') || null,
+            created_by: window.currentUser?.id
+          });
+          if (error) throw error;
+        }
+
+        closeMovementModal();
+        await loadProducts();
+        logActivity(
+          movementType === 'sortie' ? 'Sortie stock' : 'Entrée stock',
+          'Stock',
+          `${movementProduct.designation} — ${quantite} (${motif})`
+        );
+      } catch (error) {
+        console.error('Submit movement error:', error);
+        alert('Erreur: ' + (error.message || error));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     function applyFilters() {
       const category = document.getElementById('filter-category').value.toLowerCase();
       const supplier = document.getElementById('filter-supplier').value.toLowerCase();
@@ -587,8 +769,20 @@
       reader.readAsDataURL(file);
     });
 
+    // Montre chan "annexe destinasyon" selman pou motif Transfert
+    document.getElementById('movement-motif').addEventListener('change', (e) => {
+      const wrap = document.getElementById('movement-dest-wrap');
+      const isTransfer = e.target.value === 'transfert_annexe' && movementType === 'sortie';
+      wrap.classList.toggle('hidden', !isTransfer);
+      const sel = document.getElementById('movement-dest');
+      if (isTransfer && !sel.options.length) {
+        alert('Aucune autre annexe active — créez-en une dans Paramètres → Annexes.');
+      }
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
       initApp().then(() => {
+        loadAnnexes();
         loadProducts();
       });
     });

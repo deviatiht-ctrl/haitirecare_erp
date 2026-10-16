@@ -107,6 +107,17 @@
                 <input type="text" name="fournisseur" class="form-input">
               </div>
               <div class="form-group">
+                <label class="form-label">Motif *</label>
+                <select name="motif" class="form-select form-input" required>
+                  <option value="achat">Achat fournisseur</option>
+                  <option value="retour_client">Retour client</option>
+                  <option value="ajustement">Ajustement inventaire</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
                 <label class="form-label">N° Bon de livraison</label>
                 <input type="text" name="reference" class="form-input">
               </div>
@@ -133,12 +144,13 @@
                   <th>Prix unitaire</th>
                   <th>Total</th>
                   <th>Fournisseur</th>
+                  <th>Motif</th>
                   <th>Référence</th>
                 </tr>
               </thead>
               <tbody id="entries-table-body">
                 <tr>
-                  <td colspan="7" style="text-align: center; padding: var(--space-6);">
+                  <td colspan="8" style="text-align: center; padding: var(--space-6);">
                     <div class="loading">
                       <div class="loading-spinner"></div>
                     </div>
@@ -190,7 +202,7 @@
       const tbody = document.getElementById('entries-table-body');
       
       if (!entries.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Aucune entrée</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Aucune entrée</td></tr>';
         return;
       }
 
@@ -206,6 +218,7 @@
             <td>${formatCurrency(entry.prix_unitaire || 0)}</td>
             <td>${formatCurrency(total)}</td>
             <td>${entry.fournisseur || '-'}</td>
+            <td>${entry.motif || '-'}</td>
             <td>${entry.reference || '-'}</td>
           </tr>
         `;
@@ -222,6 +235,7 @@
         quantite: parseFloat(formData.get('quantite')),
         prix_unitaire: parseFloat(formData.get('prix_unitaire')) || null,
         fournisseur: formData.get('fournisseur'),
+        motif: formData.get('motif'),
         reference: formData.get('reference'),
         notes: formData.get('notes'),
         created_by: window.currentUser?.id
@@ -252,6 +266,7 @@
         'Prix unitaire': e.prix_unitaire || 0,
         Total: e.quantite * (e.prix_unitaire || 0),
         Fournisseur: e.fournisseur || '',
+        Motif: e.motif || '',
         Référence: e.reference || '',
         Notes: e.notes || ''
       }));

@@ -97,14 +97,20 @@
                 <input type="number" name="quantite" class="form-input" min="1" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Motif</label>
-                <select name="motif" class="form-select form-input" required>
+                <label class="form-label">Motif *</label>
+                <select name="motif" class="form-select form-input" id="motif-select" required>
                   <option value="vente">Vente</option>
-                  <option value="usage_interne">Usage interne</option>
-                  <option value="perte">Perte</option>
-                  <option value="retour">Retour</option>
+                  <option value="usage_interne">Consommation interne</option>
+                  <option value="casse_perime">Cassé / Périmé</option>
+                  <option value="transfert_annexe">Transfert d'annexe</option>
+                  <option value="retour">Retour fournisseur</option>
+                  <option value="autre">Autre</option>
                 </select>
               </div>
+            </div>
+            <div class="form-group hidden" id="dest-wrap">
+              <label class="form-label">Annexe de destination *</label>
+              <select name="dest_annexe" class="form-select form-input" id="dest-select"></select>
             </div>
             <div class="form-group">
               <label class="form-label">Notes</label>
@@ -148,6 +154,19 @@
   <script>
     let allExits = [];
     let allProducts = [];
+    let allAnnexes = [];
+
+    async function loadAnnexes() {
+      try {
+        const { data } = await db.from('erp_annexes')
+          .select('id, code, nom').eq('is_active', true).order('code');
+        allAnnexes = data || [];
+        const current = typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null;
+        document.getElementById('dest-select').innerHTML = allAnnexes
+          .filter(a => a.id !== current)
+          .map(a => `<option value="${a.id}">${a.code} — ${a.nom}</option>`).join('');
+      } catch (e) { allAnnexes = []; }
+    }
 
     async function loadProducts() {
       try {
@@ -233,11 +252,29 @@
       }
 
       try {
-        await db.from('erp_stock_movements').insert(exitData);
+        if (exitData.motif === 'transfert_annexe') {
+          const dest = formData.get('dest_annexe');
+          if (!dest) {
+            alert("Choisir l'annexe de destination");
+            return;
+          }
+          const { error } = await db.rpc('erp_transfer_stock', {
+            p_produit_id: exitData.produit_id,
+            p_quantite: exitData.quantite,
+            p_dest_annexe_id: dest,
+            p_motif: exitData.notes || 'Transfert entre annexes'
+          });
+          if (error) throw error;
+        } else {
+          const { error } = await db.from('erp_stock_movements').insert(exitData);
+          if (error) throw error;
+        }
         form.reset();
+        document.getElementById('dest-wrap').classList.add('hidden');
+        document.getElementById('exit-form').querySelector('input[name="date"]').valueAsDate = new Date();
         await loadProducts();
         await loadExits();
-        logActivity('Sortie stock', 'Stock', `Sortie de ${exitData.quantité} unités`);
+        logActivity('Sortie stock', 'Stock', `Sortie de ${exitData.quantite} unités`);
       } catch (error) {
         console.error('Submit exit error:', error);
         alert('Erreur lors de l\'enregistrement');
@@ -263,8 +300,25 @@
 
     document.getElementById('exit-form').querySelector('input[name="date"]').valueAsDate = new Date();
 
+    // Montre selectè annex la selman pou "Transfert d'annexe"
+    document.getElementById('motif-select').addEventListener('change', (e) => {
+      document.getElementById('dest-wrap').classList.toggle('hidden', e.target.value !== 'transfert_annexe');
+    });
+
+    // Transfè rezève pou direksyon / manager / responsable_stock (RPC)
+    function hideTransferIfNotAllowed() {
+      const u = window.currentUser;
+      const allowed = ['pdg','directrice','directeur','manager','responsable_stock']
+        .includes(u?.role) || (typeof isErpOwner === 'function' && isErpOwner(u));
+      if (!allowed) {
+        document.querySelector('#motif-select option[value="transfert_annexe"]')?.remove();
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       initApp().then(() => {
+        hideTransferIfNotAllowed();
+        loadAnnexes();
         loadProducts();
         loadExits();
       });

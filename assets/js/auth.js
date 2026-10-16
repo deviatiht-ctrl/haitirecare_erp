@@ -58,6 +58,14 @@ const ERP_MODULE_REGISTRY = {
   facturation_medical: { label: 'Facturation Médicale', icon: 'receipt',   page: null,                                   section: 'Gestion' },
   pharmacie:    { label: 'Pharmacie',            icon: 'pill',             page: null,                                   section: 'Gestion' },
   materiel_orthopedique: { label: 'Matériel Orthopédique', icon: 'package-plus', page: '/modules/stock/inventaire.html?cat=Mat%C3%A9riel%20Orthop%C3%A9dique&m=materiel_orthopedique', section: 'Gestion' },
+  // Workflow clinique & opérations (multi-annexes)
+  consultations: { label: 'Consultations & Évaluations', icon: 'stethoscope',   page: null, section: 'Clinique' },
+  atelier:       { label: 'Atelier — Fabrication',  icon: 'hammer',           page: null,   section: 'Clinique' },
+  encaissements: { label: 'Encaissements',          icon: 'banknote',         page: null,   section: 'Gestion' },
+  service_client:{ label: 'Service Client & Suivi', icon: 'heart-handshake',  page: null,   section: 'Communication' },
+  achats:        { label: 'Achats & Fournisseurs',  icon: 'shopping-basket',  page: null,   section: 'Gestion' },
+  rapports_mensuels: { label: 'Rapports Mensuels',  icon: 'file-bar-chart',   page: null,   section: 'Rapports' },
+  audit:         { label: "Journal d'audit",        icon: 'shield-check',     page: null,   section: 'Administration' },
   // Site public HAITI REH-CARE
   siteweb:      { label: 'Site Web',             icon: 'globe',            page: '/modules/siteweb/index.html',          section: 'Site Web' },
   annonces:     { label: 'Annonces',             icon: 'megaphone',        page: '/modules/siteweb/index.html#annonces', section: 'Site Web' }
@@ -102,7 +110,15 @@ const ERP_MODULE_PERMISSIONS = {
   pharmacie:    ['pharmacie', 'stock'],
   materiel_orthopedique: ['materiel_orthopedique', 'stock', 'catalogue'],
   siteweb:      ['siteweb', 'parametres'],
-  annonces:     ['annonces', 'siteweb', 'parametres']
+  annonces:     ['annonces', 'siteweb', 'parametres'],
+  // Workflow clinique & opérations
+  consultations: ['consultations', 'patients', 'medecin'],
+  atelier:       ['atelier', 'protheses', 'ortheses', 'ouvrier'],
+  encaissements: ['encaissements', 'caisse', 'finances', 'facturation'],
+  service_client:['service_client', 'clients', 'patients'],
+  achats:        ['achats', 'fournisseurs', 'stock'],
+  rapports_mensuels: ['rapports_mensuels', 'rapports'],
+  audit:         ['audit', 'users', 'parametres']
 };
 
 // Permissions par défaut selon le rôle (utilisées si le poste
@@ -112,21 +128,37 @@ const ERP_ROLE_DEFAULT_PERMISSIONS = {
   directrice:        { all: true },
   directeur:         { all: true },
   manager:           { clients: true, stock: true, catalogue: true, finances: true, caisse: true, taches: true, rapports: true, rh: true, employes: true, messages: true, parametres: true, users: true },
-  secretaire:        { clients: true, taches: true, rapports: true, messages: true, agenda: true },
-  comptable:         { finances: true, caisse: true, factures: true, clients: true, rapports: true, messages: true },
-  responsable_stock: { stock: true, catalogue: true, fournisseurs: true, rapports: true, messages: true },
+  secretaire:        { clients: true, patients: true, rdv: true, service_client: true, taches: true, rapports: true, rapports_mensuels: true, messages: true, agenda: true },
+  comptable:         { finances: true, caisse: true, encaissements: true, factures: true, clients: true, patients: true, rapports: true, rapports_mensuels: true, messages: true },
+  responsable_stock: { stock: true, catalogue: true, fournisseurs: true, achats: true, rapports: true, rapports_mensuels: true, messages: true },
   commercial:        { clients: true, stock_read: true, catalogue: true, ventes: true, taches: true, rapports: true, messages: true },
   rh:                { rh: true, employes: true, presences: true, conges: true, taches: true, rapports: true, messages: true },
-  receptionniste:    { patients: true, clients: true, rdv: true, agenda: true, seances: true, taches: true, messages: true },
+  receptionniste:    { patients: true, clients: true, rdv: true, agenda: true, seances: true, service_client: true, taches: true, rapports: true, rapports_mensuels: true, messages: true },
   chauffeur:         { taches_own: true, presences_own: true, messages: true },
-  employe:           { taches_own: true, presences_own: true, messages: true }
+  employe:           { taches_own: true, presences_own: true, messages: true },
+  // Rôles du workflow clinique (document multi-annexes)
+  medecin:           { patients: true, rdv: true, consultations: true, evaluations: true, seances: true, ordonnances: true, protheses: true, ortheses: true, atelier: true, agenda: true, rapports: true, rapports_mensuels: true, messages: true },
+  physiotherapeute:  { patients: true, rdv: true, seances: true, physio: true, services: true, taches: true, rapports: true, rapports_mensuels: true, messages: true },
+  ouvrier:           { atelier: true, protheses: true, ortheses: true, stock_read: true, patients: true, taches: true, rapports: true, rapports_mensuels: true, messages: true },
+  informaticien:     { all: true }
 };
+
+// Rôles à accès global (toutes les annexes): direction + admin technique
+const ERP_GLOBAL_ROLES = ['pdg', 'directrice', 'directeur', 'informaticien'];
+// Rôles qui pratiquent la médecine (évaluations, orientations)
+const ERP_MEDICAL_ROLES = ['pdg', 'directrice', 'directeur', 'medecin', 'physiotherapeute'];
 
 // Comptes de direction: accès total à tous les modules, quel que soit le poste
 const ERP_OWNER_EMAILS = ['haitirecareerp@gmail.com'];
 
 function isErpOwner(user) {
-  return user?.role === 'pdg' || ERP_OWNER_EMAILS.includes(String(user?.email || '').toLowerCase());
+  return user?.role === 'pdg' || user?.role === 'informaticien'
+      || ERP_OWNER_EMAILS.includes(String(user?.email || '').toLowerCase());
+}
+
+// Accès global toutes annexes (PDG / DG / Informaticien)
+function hasGlobalAccess(user) {
+  return ERP_GLOBAL_ROLES.includes(user?.role) || isErpOwner(user);
 }
 
 // Calcule les permissions effectives: rôle + poste + modules assignés
@@ -362,6 +394,23 @@ function getCurrentPage() {
   return path.split('/').pop() || 'index.html';
 }
 
+// Chargement dinamik de branch.js (kontèks multi-annexes) —
+// yon sèl fwa, idantifye, epi pèmèt tout paj yo benefisye
+// switcher annex la san nou pa bezwen modifye chak <script>.
+let _branchJsPromise = null;
+function loadBranchSupport() {
+  if (_branchJsPromise) return _branchJsPromise;
+  _branchJsPromise = new Promise((resolve) => {
+    if (typeof initBranchContext === 'function') return resolve();
+    const s = document.createElement('script');
+    s.src = '/assets/js/branch.js?v=1';
+    s.onload = () => resolve();
+    s.onerror = () => { console.warn('[branch] branch.js pa chaje'); resolve(); };
+    document.head.appendChild(s);
+  });
+  return _branchJsPromise;
+}
+
 // Initialize app - check session and load user data
 // Memoisee: plusieurs scripts peuvent l'appeler, elle ne s'execute qu'une fois
 let _initAppPromise = null;
@@ -429,6 +478,15 @@ async function _initAppOnce() {
     // Permissions effectives + contexte entreprise (modules activés)
     user.effective_permissions = await getEffectivePermissions(user);
     window.enterpriseContext = await getEnterpriseContext(user);
+
+    // Kontèks multi-annexes: chaje annex yo + selectè topbar la
+    try {
+      await loadBranchSupport();
+      if (typeof initBranchContext === 'function') await initBranchContext(user);
+      if (typeof renderBranchSwitcher === 'function') renderBranchSwitcher();
+    } catch (e) {
+      console.warn('[branch] init:', e);
+    }
 
     console.log('User loaded:', user, 'Role:', user.role);
 
@@ -545,7 +603,8 @@ async function logActivity(action, module, details) {
       user_id: window.currentUser.id,
       action: action,
       module: module,
-      details: details
+      details: details,
+      annexe_id: (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null)
     });
   } catch (error) {
     console.error('Activity log error:', error);
@@ -566,6 +625,10 @@ function formatRole(role) {
     'rh': 'RH',
     'receptionniste': 'Réceptionniste',
     'chauffeur': 'Chauffeur',
+    'medecin': 'Médecin',
+    'physiotherapeute': 'Physiothérapeute',
+    'ouvrier': "Technicien d'Atelier",
+    'informaticien': 'Informaticien / Admin',
     'employe': 'Employé'
   };
   return roleNames[role] || role;

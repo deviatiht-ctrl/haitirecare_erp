@@ -1,7 +1,7 @@
 // Service Worker - HAITI REH-CARE ERP & Public Site
 // Enables 100% offline functionality (Cache-First / Network Fallback)
 
-const CACHE_NAME = 'haiti-rehcare-cache-v7';
+const CACHE_NAME = 'haiti-rehcare-cache-v8';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -27,6 +27,11 @@ const STATIC_ASSETS = [
   '/assets/js/users.js',
   '/assets/js/patients.js?v=11',
   '/assets/js/annexes.js?v=11',
+  '/assets/js/branch.js?v=12',
+  '/assets/js/clinique.js?v=12',
+  '/assets/js/caisse_ops.js?v=12',
+  '/assets/js/ops.js?v=12',
+  '/assets/js/rapports_mensuels.js?v=12',
   '/assets/img/logohaitirecare.png',
   '/modules/stock/inventaire.html',
   '/modules/stock/catalogue.html',
