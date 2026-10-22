@@ -8,7 +8,7 @@
 
 let _patients = [];
 let _annexes = [];
-let _patientView = 'list';      // 'list' | 'form' | 'dossier'
+let _patientView = 'list';      // 'list' | 'form' | 'dossier' | 'demandes' | 'demande' | 'lien'
 let _editingPatient = null;
 let _currentPatient = null;
 let _patientSearch = '';
@@ -16,6 +16,15 @@ let _patientFilterAnnexe = '';   // '' | annexe_id | '__none__'
 let _patientFilterStatut = '';
 let _patientFilterService = '';
 let _patientSort = 'recent';     // 'recent' | 'code' | 'nom' | 'annexe'
+
+// Demandes en ligne (fòm piblik site/inscription.html)
+let _demandes = [];
+let _currentDemande = null;
+let _demandeStatutFilter = 'en_attente';
+let _prefillPatient = null;      // payload yon demand ki ap tounen dosye
+let _demandeEnCours = null;      // id demand k ap trete a
+let _demandesSubscribed = false;
+let _lienAnnexeCode = '';        // '' = tout annex yo
 
 const STAFF_DIRECTION = ['pdg', 'directrice', 'directeur'];
 
@@ -675,20 +684,98 @@ async function patientPhotoSignedUrl(path) {
 async function renderPatientsModule(container, meta) {
   const user = window.currentUser;
 
-  const [{ data: patients }, { data: annexes }] = await Promise.all([
+  const [{ data: patients }, { data: annexes }, { data: demandes }] = await Promise.all([
     db.from('erp_patients').select('*').order('created_at', { ascending: false }).limit(200),
-    db.from('erp_annexes').select('*').eq('is_active', true).order('is_principale', { ascending: false })
+    db.from('erp_annexes').select('*').eq('is_active', true).order('is_principale', { ascending: false }),
+    loadDemandes()
   ]);
   _patients = patients || [];
   _annexes = annexes || [];
+  _demandes = demandes || [];
+
+  subscribeDemandes();
 
   if (_patientView === 'form') return renderPatientForm(container, user);
+  if (_patientView === 'demandes') return renderDemandesList(container);
+  if (_patientView === 'demande' && _currentDemande) {
+    _currentDemande = _demandes.find(d => d.id === _currentDemande.id) || _currentDemande;
+    return renderDemandeDetail(container, _currentDemande);
+  }
+  if (_patientView === 'lien') return renderPatientLink(container);
   if (_patientView === 'dossier' && _currentPatient) {
     // Mete ajou dosye a depi lis frech la (apre yon edit)
     _currentPatient = _patients.find(p => p.id === _currentPatient.id) || _currentPatient;
     return renderPatientDossier(container, _currentPatient);
   }
   renderPatientList(container);
+}
+
+// --------------------------------------------------------------
+// DEMANDES EN LIGNE — chajman + realtime + toast
+// --------------------------------------------------------------
+async function loadDemandes() {
+  try {
+    // Tab la nan BRANCH_SCOPED_TABLES → filtè annex otomatik
+    return await db.from('erp_patient_demandes')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+  } catch (e) {
+    console.warn('[demandes] load:', e);
+    return { data: [] };
+  }
+}
+
+function demandesEnAttente() {
+  return _demandes.filter(d => d.statut === 'en_attente');
+}
+
+// Sekretè a resevwa demand yo OTOMATIKMAN (postgres_changes).
+// Si realtime la pa aktive sou sèvè a, lis la mete ajou nan
+// chak louvri modil + bouton "Actualiser".
+// Èske nou sou paj modil "patients" la kounye a?
+function onPatientsModulePage() {
+  return /\/module\.html/.test(location.pathname)
+    && new URLSearchParams(location.search).get('m') === 'patients';
+}
+
+function subscribeDemandes() {
+  if (_demandesSubscribed || typeof db.channel !== 'function') return;
+  _demandesSubscribed = true;
+  try {
+    db.channel('erp_patient_demandes_feed')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'erp_patient_demandes' },
+        (payload) => {
+          const row = payload.new;
+          if (!row || _demandes.some(d => d.id === row.id)) return;
+          _demandes.unshift(row);
+          demandeToast(`Nouvelle demande — ${[row.prenom, row.nom].filter(Boolean).join(' ')}`);
+          // Rafrechi sèlman si itilizatè a toujou nan modil Patients la
+          if (!onPatientsModulePage()) return;
+          const c = document.getElementById('module-content');
+          if (_patientView === 'list' && c) renderPatientList(c);
+          if (_patientView === 'demandes' && c) renderDemandesList(c);
+        })
+      .subscribe();
+  } catch (e) {
+    console.warn('[demandes] realtime:', e);
+  }
+}
+
+// Ti toast an ba a dwat lè yon demand rive
+function demandeToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed; bottom:20px; right:20px; z-index:9999; background:#0f766e; color:#fff; padding:12px 18px; border-radius:12px; font-size:14px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,.2); cursor:pointer;';
+  t.innerHTML = `<i data-lucide="inbox" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;"></i>${escH(msg)}`;
+  t.onclick = () => {
+    t.remove();
+    if (onPatientsModulePage()) patientShowDemandes();
+    else window.location.href = '/module.html?m=patients';
+  };
+  document.body.appendChild(t);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  setTimeout(() => t.remove(), 8000);
 }
 
 // --------------------------------------------------------------
@@ -818,6 +905,15 @@ function renderPatientList(container) {
                value="${escH(_patientSearch)}">
       </div>
       <div class="page-actions">
+        <button class="btn btn-secondary" onclick="patientShowDemandes()">
+          <i data-lucide="inbox"></i> Demandes
+          ${demandesEnAttente().length
+            ? `<span style="background:#d97706; color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; margin-left:4px;">${demandesEnAttente().length}</span>`
+            : ''}
+        </button>
+        <button class="btn btn-secondary" onclick="patientShowLien()" title="Lien & QR code du formulaire en ligne">
+          <i data-lucide="qr-code"></i> Formulaire en ligne
+        </button>
         <button class="btn btn-primary" onclick="patientShowForm()">
           <i data-lucide="plus"></i> Nouveau patient
         </button>
@@ -901,6 +997,7 @@ function renderPatientList(container) {
 
 function renderPatientForm(container, user) {
   const canChoose = STAFF_DIRECTION.includes(user?.role) || (typeof isErpOwner === 'function' && isErpOwner(user));
+  const fromDemande = _prefillPatient && !_editingPatient;
   container.innerHTML = `
     <div class="page-header">
       <h2 style="margin:0;">${_editingPatient ? 'Modifier le dossier' : 'Nouveau patient'}</h2>
@@ -910,6 +1007,15 @@ function renderPatientForm(container, user) {
         </button>
       </div>
     </div>
+    ${fromDemande ? `
+      <div class="card" style="margin-bottom:16px; border-left:4px solid #0d9488; padding:14px 18px; display:flex; align-items:center; gap:12px;">
+        <i data-lucide="inbox" style="color:#0d9488;"></i>
+        <div style="font-size:14px;">
+          <strong>Demande en ligne</strong> — le formulaire est pré-rempli avec les
+          informations du patient. Vérifiez, complétez puis
+          <strong>Enregistrer le patient</strong> pour créer le dossier.
+        </div>
+      </div>` : ''}
     ${renderPatientFormHTML(user, canChoose)}`;
 
   const form = document.getElementById('patient-form');
@@ -940,6 +1046,9 @@ function renderPatientForm(container, user) {
   addInfoImportanteRow();
   if (_editingPatient) {
     fillPatientForm(form, _editingPatient);
+    fillCommunes();
+  } else if (_prefillPatient) {
+    fillPatientForm(form, _prefillPatient);
     fillCommunes();
   } else {
     fillCommunes();
@@ -979,6 +1088,24 @@ async function submitPatientForm(e, container) {
     if (error) throw error;
 
     if (typeof logActivity === 'function') logActivity('Création', 'Patients', `Patient ${created?.code || ''} enregistré`);
+
+    // Si dosye a soti nan yon demand anliy → maké l "traite" + lyen l
+    if (_demandeEnCours) {
+      try {
+        await db.from('erp_patient_demandes').update({
+          statut: 'traite',
+          patient_id: created?.id || null,
+          traite_par: window.currentUser?.id || null,
+          traite_at: new Date().toISOString()
+        }).eq('id', _demandeEnCours);
+        const dd = _demandes.find(x => x.id === _demandeEnCours);
+        if (dd) { dd.statut = 'traite'; dd.patient_id = created?.id || null; }
+      } catch (e) {
+        console.warn('[demandes] marquage traité:', e);
+      }
+    }
+    _demandeEnCours = null;
+    _prefillPatient = null;
 
     _patientView = 'list';
     _editingPatient = null;
@@ -1135,17 +1262,23 @@ function patientShowList() {
   _patientView = 'list';
   _editingPatient = null;
   _currentPatient = null;
+  _prefillPatient = null;
+  _demandeEnCours = null;
   const c = document.getElementById('module-content');
   if (c) renderPatientsModule(c);
 }
 function patientShowForm() {
   _patientView = 'form';
   _editingPatient = null;
+  _prefillPatient = null;
+  _demandeEnCours = null;
   const c = document.getElementById('module-content');
   if (c) renderPatientsModule(c);
 }
 function patientEdit(id) {
   _editingPatient = _patients.find(p => p.id === id) || _currentPatient;
+  _prefillPatient = null;
+  _demandeEnCours = null;
   _patientView = 'form';
   const c = document.getElementById('module-content');
   if (c) renderPatientsModule(c);
@@ -1155,4 +1288,375 @@ function patientShowDossier(id, container) {
   _patientView = 'dossier';
   const c = container || document.getElementById('module-content');
   if (c) renderPatientsModule(c);
+}
+
+// --------------------------------------------------------------
+// DEMANDES EN LIGNE — lis, detay, validasyon
+// --------------------------------------------------------------
+function patientShowDemandes() {
+  _patientView = 'demandes';
+  const c = document.getElementById('module-content');
+  if (c) renderPatientsModule(c);
+}
+function patientShowLien() {
+  _patientView = 'lien';
+  const c = document.getElementById('module-content');
+  if (c) renderPatientsModule(c);
+}
+function demandeSetStatut(v) {
+  _demandeStatutFilter = v;
+  const c = document.getElementById('module-content');
+  if (c) renderDemandesList(c);
+}
+async function demandesRefresh() {
+  const c = document.getElementById('module-content');
+  const { data } = await loadDemandes();
+  _demandes = data || [];
+  if (c) renderDemandesList(c);
+}
+
+const DEMANDE_STATUTS = {
+  en_attente: ['pending', 'En attente'],
+  traite:     ['active', 'Traitée'],
+  rejete:     ['inactive', 'Rejetée']
+};
+
+function renderDemandesList(container) {
+  const rows = _demandeStatutFilter
+    ? _demandes.filter(d => d.statut === _demandeStatutFilter)
+    : _demandes;
+  const annexeOf = (d) => _annexes.find(a => a.id === d.annexe_id);
+  const counts = {
+    en_attente: _demandes.filter(d => d.statut === 'en_attente').length,
+    traite: _demandes.filter(d => d.statut === 'traite').length,
+    rejete: _demandes.filter(d => d.statut === 'rejete').length
+  };
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h2 style="margin:0;">Demandes en ligne</h2>
+        <p style="margin:4px 0 0; color:var(--clr-text-muted,#94a3b8); font-size:13px;">
+          Formulaires remplis par les patients depuis le lien / QR code — ils arrivent ici automatiquement.
+        </p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="demandesRefresh()">
+          <i data-lucide="refresh-cw"></i> Actualiser
+        </button>
+        <button class="btn btn-secondary" onclick="patientShowLien()">
+          <i data-lucide="qr-code"></i> Lien &amp; QR code
+        </button>
+        <button class="btn btn-secondary" onclick="patientShowList()">
+          <i data-lucide="arrow-left"></i> Liste patients
+        </button>
+      </div>
+    </div>
+    <div class="filters-bar" style="margin-bottom:16px;">
+      <select class="form-select form-input" style="max-width:220px;"
+              onchange="demandeSetStatut(this.value)">
+        <option value="en_attente" ${_demandeStatutFilter === 'en_attente' ? 'selected' : ''}>En attente (${counts.en_attente})</option>
+        <option value="traite" ${_demandeStatutFilter === 'traite' ? 'selected' : ''}>Traitées (${counts.traite})</option>
+        <option value="rejete" ${_demandeStatutFilter === 'rejete' ? 'selected' : ''}>Rejetées (${counts.rejete})</option>
+        <option value="" ${_demandeStatutFilter === '' ? 'selected' : ''}>Toutes (${_demandes.length})</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Reçue le</th><th>Patient</th><th>Téléphone</th>
+              <th>Annexe</th><th>Statut</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map(d => {
+              const [cls, lbl] = DEMANDE_STATUTS[d.statut] || ['pending', d.statut];
+              return `
+              <tr>
+                <td>${escH((d.created_at || '').slice(0, 16).replace('T', ' '))}</td>
+                <td><strong>${escH(d.nom)}</strong> ${escH(d.prenom || '')}</td>
+                <td>${escH(d.phone || '-')}</td>
+                <td>${escH(annexeOf(d)?.code || 'Toutes')}</td>
+                <td><span class="status-badge ${cls}">${lbl}</span></td>
+                <td>
+                  <button class="table-action-btn" onclick="demandeShowDetail('${d.id}')">
+                    <i data-lucide="eye"></i> Voir
+                  </button>
+                </td>
+              </tr>`;
+            }).join('')
+            : `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">
+                 Aucune demande ${_demandeStatutFilter === 'en_attente' ? 'en attente — les nouvelles demandes apparaîtront ici automatiquement.' : 'dans cette catégorie.'}
+               </td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function demandeShowDetail(id) {
+  _currentDemande = _demandes.find(d => d.id === id);
+  _patientView = 'demande';
+  const c = document.getElementById('module-content');
+  if (c) renderPatientsModule(c);
+}
+
+function renderDemandeDetail(container, d) {
+  const p = d.payload || {};
+  const annexe = _annexes.find(a => a.id === d.annexe_id);
+  const [cls, lbl] = DEMANDE_STATUTS[d.statut] || ['pending', d.statut];
+  const patientLinked = d.patient_id ? _patients.find(x => x.id === d.patient_id) : null;
+
+  const row = (l, val) => val
+    ? `<div><div class="user-card-detail-label">${l}</div><div class="user-card-detail-value">${escH(Array.isArray(val) ? val.join(', ') : val)}</div></div>`
+    : '';
+  const ampLabels = Object.fromEntries(AMP_MI.concat(AMP_MS));
+  const amp = p.niveau_amputation || {};
+  const ampRows = Object.entries(amp)
+    .filter(([, v]) => Array.isArray(v) && v.length)
+    .map(([k, v]) => row(k.replace(/_/g, ' ').toUpperCase(), v.map(x => ampLabels[x] || x)))
+    .join('');
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h2 style="margin:0;">${escH(d.nom)} ${escH(d.prenom || '')}</h2>
+        <p style="margin:4px 0 0; color:var(--clr-text-muted,#94a3b8); font-size:13px;">
+          Demande reçue le ${escH((d.created_at || '').slice(0, 16).replace('T', ' '))}
+          · Annexe: ${escH(annexe?.nom || 'Toutes')}
+          · <span class="status-badge ${cls}">${lbl}</span>
+        </p>
+      </div>
+      <div class="page-actions">
+        ${d.statut === 'en_attente' ? `
+          <button class="btn btn-primary" onclick="demandeToPatient('${d.id}')">
+            <i data-lucide="folder-plus"></i> Créer le dossier
+          </button>
+          <button class="btn btn-secondary" onclick="demandeRejeter('${d.id}')">
+            <i data-lucide="x"></i> Rejeter
+          </button>` : ''}
+        ${patientLinked ? `
+          <button class="btn btn-primary" onclick="patientShowDossier('${patientLinked.id}')">
+            <i data-lucide="folder-open"></i> Ouvrir le dossier ${escH(patientLinked.code || '')}
+          </button>` : ''}
+        <button class="btn btn-secondary" onclick="patientShowDemandes()">
+          <i data-lucide="arrow-left"></i> Demandes
+        </button>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(300px,100%), 1fr)); gap:16px;">
+      <div class="card" style="padding: var(--space-5);">
+        <h3 class="card-title" style="margin-bottom:12px;">Informations personnelles</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(150px,100%),1fr)); gap:10px;">
+          ${row('Né(e) le', p.date_naissance)}
+          ${row('Genre', p.sexe === 'M' ? 'Masculin' : p.sexe === 'F' ? 'Féminin' : p.sexe)}
+          ${row('État civil', p.etat_civil)}
+          ${row("Carte d'identité", p.carte_identite)}
+          ${row('Téléphone', p.phone)}
+          ${row('Email', p.email)}
+          ${row('Responsable', p.personne_responsable)}
+          ${row('Profession', p.profession)}
+          ${row('Activité', p.activite)}
+          ${row('Enfants', p.nombre_enfants)}
+          ${row('Service', (p.type_service || []).join(', '))}
+          ${row('Adresse', [p.adresse_rue, p.localite, p.commune, p.departement, p.province].filter(Boolean).join(', '))}
+        </div>
+      </div>
+
+      <div class="card" style="padding: var(--space-5);">
+        <h3 class="card-title" style="margin-bottom:12px;">Référence &amp; santé</h3>
+        <div style="display:grid; gap:10px;">
+          ${row('Envoyé de', (p.envoye_de || []).concat(p.envoye_de_autre ? [p.envoye_de_autre] : []))}
+          ${row('Déjà appareillé', { non: 'Non', oui: 'Oui', oui_hrc: 'Oui — Haiti Reh-Care' }[p.deja_appareille])}
+          ${row('Diagnostic', p.diagnostic)}
+          ${row('Cause', p.cause_invalidite)}
+          ${row('Trauma', p.raison_trauma)}
+          ${row('Motif', p.motif_consultation)}
+          ${row('Antécédent médical', p.antecedent_medical)}
+          ${row('Antécédent familial', p.antecedent_familial)}
+          ${row('Douleur', [p.douleur_localisation, p.douleur_niveau != null ? `${p.douleur_niveau}/10` : ''].filter(Boolean).join(' — '))}
+          ${row('Attentes', p.attentes_patient)}
+        </div>
+      </div>
+
+      ${ampRows || p.date_amputation ? `
+      <div class="card" style="padding: var(--space-5);">
+        <h3 class="card-title" style="margin-bottom:12px;">Amputation</h3>
+        <div style="display:grid; gap:10px;">
+          ${row("Date d'amputation", p.date_amputation)}
+          ${row('Hôpital', p.hopital_amputation)}
+          ${row("Région de l'accident", p.region_accident)}
+          ${row("Lieu de l'accident", p.lieu_accident)}
+          ${ampRows}
+        </div>
+      </div>` : ''}
+    </div>`;
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Konvèti demand la an dosye: fòm konplè a pre-ranpli →
+// erp_register_patient la kreye dosye a ak kòd otomatik la.
+function demandeToPatient(id) {
+  const d = _demandes.find(x => x.id === id);
+  if (!d) return;
+  _prefillPatient = { ...(d.payload || {}) };
+  if (d.annexe_id) _prefillPatient.annexe_id = d.annexe_id; // pre-chwazi annex demand la
+  _demandeEnCours = d.id;
+  _editingPatient = null;
+  _patientView = 'form';
+  const c = document.getElementById('module-content');
+  if (c) renderPatientsModule(c);
+}
+
+async function demandeRejeter(id) {
+  if (!confirm('Rejeter cette demande ?')) return;
+  const { error } = await db.from('erp_patient_demandes').update({
+    statut: 'rejete',
+    traite_par: window.currentUser?.id || null,
+    traite_at: new Date().toISOString()
+  }).eq('id', id);
+  if (error) { alert('Erreur: ' + error.message); return; }
+  const d = _demandes.find(x => x.id === id);
+  if (d) d.statut = 'rejete';
+  _demandeStatutFilter = 'en_attente';
+  patientShowDemandes();
+}
+
+// --------------------------------------------------------------
+// LYEN + QR CODE — fòm piblik la pou telefòn pasyan an
+// --------------------------------------------------------------
+// Domèn piblik pwojè a. Lyen/QR la fèt pou telefòn pasyan an —
+// li pa janm ka rive sou 127.0.0.1/localhost (dev lokal), kidonk
+// nan ka sa a nou sèvi ak URL Vercel la (oswa company_website nan
+// paramèt antrepriz la si li konfigire).
+const PATIENT_FORM_ORIGIN = 'https://haitirecare-erp-phi.vercel.app';
+
+function patientFormUrl(annexeCode) {
+  const isLocal = location.protocol === 'file:'
+    || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
+  const configured = (window.enterpriseContext?.enterprise?.company_website || '')
+    .replace(/\/+$/, '');
+  const origin = isLocal ? (configured || PATIENT_FORM_ORIGIN) : location.origin;
+  const base = `${origin}/site/inscription.html`;
+  return annexeCode ? `${base}?a=${encodeURIComponent(annexeCode)}` : base;
+}
+
+let _qrLibPromise = null;
+function ensureQrLib() {
+  if (_qrLibPromise) return _qrLibPromise;
+  _qrLibPromise = new Promise((resolve) => {
+    if (typeof qrcode !== 'undefined') return resolve(true);
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/qrcode-generator@1.4.4/qrcode.js';
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+  return _qrLibPromise;
+}
+
+async function renderQrBox() {
+  const el = document.getElementById('qr-box');
+  if (!el) return;
+  const url = patientFormUrl(_lienAnnexeCode);
+  el.innerHTML = '<div style="padding:40px; color:var(--clr-text-muted,#94a3b8); font-size:13px;">Génération…</div>';
+  const ok = await ensureQrLib();
+  if (!ok) {
+    el.innerHTML = '<div style="padding:40px; color:var(--clr-text-muted,#94a3b8); font-size:13px; text-align:center;">QR code indisponible hors ligne —<br>copiez le lien ci-dessus.</div>';
+    return;
+  }
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    el.innerHTML = qr.createSvgTag(6, 4);
+  } catch (e) {
+    el.innerHTML = '<div style="padding:40px; font-size:13px;">Erreur QR — copiez le lien.</div>';
+  }
+}
+
+function lienSetAnnexe(code) {
+  _lienAnnexeCode = code;
+  const inp = document.getElementById('lien-url');
+  if (inp) inp.value = patientFormUrl(code);
+  renderQrBox();
+}
+
+async function lienCopier() {
+  const url = patientFormUrl(_lienAnnexeCode);
+  try {
+    await navigator.clipboard.writeText(url);
+    alert('Lien copié !');
+  } catch (e) {
+    const inp = document.getElementById('lien-url');
+    if (inp) { inp.select(); document.execCommand('copy'); alert('Lien copié !'); }
+  }
+}
+
+function renderPatientLink(container) {
+  const url = patientFormUrl(_lienAnnexeCode);
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h2 style="margin:0;">Formulaire d'inscription en ligne</h2>
+        <p style="margin:4px 0 0; color:var(--clr-text-muted,#94a3b8); font-size:13px;">
+          Le patient remplit son dossier lui-même sur son téléphone — la demande
+          arrive automatiquement dans « Demandes en ligne ».
+        </p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="patientShowList()">
+          <i data-lucide="arrow-left"></i> Liste patients
+        </button>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(320px,100%),1fr)); gap:16px;">
+      <div class="card" style="padding: var(--space-5);">
+        <h3 class="card-title" style="margin-bottom:14px;">1. Choisissez l'annexe concernée</h3>
+        <div class="form-group" style="margin-bottom:18px;">
+          <select class="form-select form-input" onchange="lienSetAnnexe(this.value)">
+            <option value="" ${_lienAnnexeCode === '' ? 'selected' : ''}>Toutes les annexes (réception centrale)</option>
+            ${_annexes.map(a =>
+              `<option value="${escH(a.code)}" ${_lienAnnexeCode === a.code ? 'selected' : ''}>${escH(a.code)} — ${escH(a.nom)}</option>`).join('')}
+          </select>
+        </div>
+
+        <h3 class="card-title" style="margin-bottom:10px;">2. Partagez le lien</h3>
+        <p style="font-size:13px; color:var(--clr-text-muted,#94a3b8); margin-top:0;">
+          Envoyez-le par WhatsApp/SMS au patient, ou saisissez-le sur sa tablette à l'accueil :
+        </p>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="lien-url" class="form-input" readonly value="${escH(url)}"
+                 style="font-size:12.5px; background:var(--clr-bg-soft,#f1f5f9);">
+          <button class="btn btn-primary" onclick="lienCopier()" style="white-space:nowrap;">
+            <i data-lucide="copy"></i> Copier
+          </button>
+        </div>
+        <a href="${escH(url)}" target="_blank" rel="noopener"
+           style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:13px;">
+          <i data-lucide="external-link" style="width:15px;height:15px;"></i> Ouvrir le formulaire
+        </a>
+      </div>
+
+      <div class="card" style="padding: var(--space-5); text-align:center;">
+        <h3 class="card-title" style="margin-bottom:6px;">3. Ou faites scanner le QR code</h3>
+        <p style="font-size:13px; color:var(--clr-text-muted,#94a3b8); margin-top:0;">
+          Le patient le scanne avec l'appareil photo de son téléphone.
+        </p>
+        <div id="qr-box" style="display:flex; justify-content:center; padding:12px;"></div>
+        <button class="btn btn-secondary" onclick="window.print()">
+          <i data-lucide="printer"></i> Imprimer pour l'accueil
+        </button>
+      </div>
+    </div>`;
+
+  renderQrBox();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }

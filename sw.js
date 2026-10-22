@@ -1,7 +1,7 @@
 // Service Worker - HAITI REH-CARE ERP & Public Site
 // Enables 100% offline functionality (Cache-First / Network Fallback)
 
-const CACHE_NAME = 'haiti-rehcare-cache-v8';
+const CACHE_NAME = 'haiti-rehcare-cache-v9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -25,9 +25,9 @@ const STATIC_ASSETS = [
   '/assets/js/taches.js',
   '/assets/js/rapports.js',
   '/assets/js/users.js',
-  '/assets/js/patients.js?v=11',
+  '/assets/js/patients.js?v=13',
   '/assets/js/annexes.js?v=11',
-  '/assets/js/branch.js?v=12',
+  '/assets/js/branch.js?v=13',
   '/assets/js/clinique.js?v=12',
   '/assets/js/caisse_ops.js?v=12',
   '/assets/js/ops.js?v=12',
@@ -57,11 +57,13 @@ const STATIC_ASSETS = [
   '/site/contact.html',
   '/site/compte.html',
   '/site/rendez-vous.html',
+  '/site/inscription.html',
   '/site/assets/site.css',
   '/site/assets/site.js',
   'https://unpkg.com/lucide@latest',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-  'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js'
+  'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js',
+  'https://unpkg.com/qrcode-generator@1.4.4/qrcode.js'
 ];
 
 // Install Event — Pre-cache all static assets

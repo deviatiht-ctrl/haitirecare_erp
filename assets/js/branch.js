@@ -26,6 +26,7 @@
 // Tab ki gen kolòn annexe_id (filtre aplikab)
 const BRANCH_SCOPED_TABLES = new Set([
   'erp_patients', 'erp_rdv', 'erp_seances', 'erp_protheses', 'erp_ortheses',
+  'erp_patient_demandes',
   'erp_patient_reevaluations', 'erp_evaluations', 'erp_atelier_orders',
   'erp_encaissements', 'erp_reclamations', 'erp_bons_commande',
   'erp_clients', 'erp_client_suivi',

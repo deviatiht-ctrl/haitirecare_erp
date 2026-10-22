@@ -42,6 +42,7 @@ Open the SQL Editor in Supabase and run these files **in this exact order**:
 12. **14_annexes_patients.sql** - Annexes/succursales (`erp_annexes`, `erp_users.annexe_id`), code patient auto par annexe (`PAP-0001`), dossier patient complet (fiches 1-9) + `erp_patient_reevaluations` (fiche 10)
 13. **15_roles_receptionniste_chauffeur.sql** - Nouveaux rôles `receptionniste` (accès clinique niveau secrétaire) et `chauffeur` (accès minimal) — CHECK, RPC, RLS
 14. **16_multibranch.sql** - **Multi-annexes complet** : `annexe_id` sur toutes les tables opérationnelles (+ backfill vers l'annexe principale), trigger `erp_set_row_annexe` (annexe auto sur insert), RLS `erp_annexe_visible()` (isolation stricte : staff = son annexe, direction/admin = tout), nouveaux rôles (`medecin`, `physiotherapeute`, `ouvrier`, `informaticien`), tables de workflow (`erp_evaluations`, `erp_atelier_orders`, `erp_encaissements`, `erp_reclamations`, `erp_bons_commande`, `erp_rapports_mensuels`, `erp_audit_log`), RPC (`erp_send_monthly_report`, `erp_transfer_stock`) et seed des annexes **Port-au-Prince (PAP)** et **Léogâne (LEO)**.
+15. **17_demandes_inscription.sql** - **Inscription patient en ligne** : table `erp_patient_demandes` + RPC publique `erp_public_demande_patient` (sans connexion, whitelist des champs + anti-doublon) — le patient remplit `site/inscription.html` via lien/QR code, la demande arrive automatiquement dans Patients → Demandes en ligne (realtime), la secrétaire la convertit en dossier en un clic.
 
 ### 5. Verify the Setup
 After running all SQL files:

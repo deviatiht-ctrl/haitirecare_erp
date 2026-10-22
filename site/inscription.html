@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulaire d'inscription patient — HAITI REH-CARE</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/site.js"></script>
+  <style>
+    .check-grid { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .check-grid label {
+      display: flex; align-items: center; gap: 7px; font-size: 14px;
+      font-weight: 500; color: var(--rc-text-2); cursor: pointer;
+      padding: 6px 10px; border: 1px solid var(--rc-border); border-radius: 8px;
+    }
+    .check-grid label:has(input:checked) { border-color: var(--rc-teal); background: var(--rc-teal-soft); color: var(--rc-teal-dark); }
+    .check-grid input { width: 16px; height: 16px; accent-color: var(--rc-teal); }
+    .form-section-title {
+      font-size: 16px; font-weight: 700; color: var(--rc-text);
+      display: flex; align-items: center; gap: 9px;
+      margin: 26px 0 14px; padding-top: 22px;
+      border-top: 1px solid var(--rc-border);
+    }
+    .form-section-title:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+    .form-section-title .lucide { color: var(--rc-teal); }
+    .fieldset-box { border: 1px solid var(--rc-border); border-radius: 12px; padding: 14px; }
+    .fieldset-box legend { font-size: 13px; font-weight: 600; padding: 0 6px; color: var(--rc-text-2); }
+    .pain-scale { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pain-scale label {
+      width: 38px; height: 38px; display: grid; place-items: center;
+      border: 1px solid var(--rc-border); border-radius: 9px; font-size: 14px;
+      font-weight: 600; cursor: pointer; color: var(--rc-text-2);
+    }
+    .pain-scale label:has(input:checked) { background: var(--rc-teal); color: #fff; border-color: var(--rc-teal); }
+    .pain-scale input { display: none; }
+  </style>
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <section class="page-hero">
+    <h1>Formulaire d'inscription</h1>
+    <p>Remplissez ce formulaire depuis votre téléphone — la réception du centre recevra vos informations automatiquement.</p>
+  </section>
+
+  <section class="section">
+    <div class="container" style="max-width: 760px;">
+      <div id="alert-zone"></div>
+
+      <form class="form-card" id="inscription-form">
+
+        <!-- I. Identité -->
+        <h3 class="form-section-title"><i data-lucide="user"></i> Vos informations personnelles</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label>Nom <span class="req">*</span></label>
+            <input type="text" name="nom" required>
+          </div>
+          <div class="field">
+            <label>Prénom</label>
+            <input type="text" name="prenom">
+          </div>
+          <div class="field">
+            <label>Date de naissance</label>
+            <input type="date" name="date_naissance">
+          </div>
+          <div class="field">
+            <label>Genre</label>
+            <select name="sexe">
+              <option value="">—</option>
+              <option value="M">Masculin</option>
+              <option value="F">Féminin</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>État civil</label>
+            <select name="etat_civil">
+              <option value="">—</option>
+              <option value="celibataire">Célibataire</option>
+              <option value="marie">Marié(e)</option>
+              <option value="divorce">Divorcé(e)</option>
+              <option value="veuf">Veuf(ve)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>N° Carte d'identité</label>
+            <input type="text" name="carte_identite">
+          </div>
+          <div class="field">
+            <label>Téléphone <span class="req">*</span></label>
+            <input type="tel" name="phone" required placeholder="+509 …">
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <input type="email" name="email">
+          </div>
+          <div class="field">
+            <label>Personne responsable</label>
+            <input type="text" name="personne_responsable">
+          </div>
+          <div class="field">
+            <label>Profession</label>
+            <input type="text" name="profession">
+          </div>
+          <div class="field full">
+            <label>Activité</label>
+            <div class="check-grid">
+              <label><input type="radio" name="activite" value="etudiant"> Étudiant</label>
+              <label><input type="radio" name="activite" value="salarie"> Salarié</label>
+              <label><input type="radio" name="activite" value="autres"> Autre</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Autre activité (précisez)</label>
+            <input type="text" name="activite_autre">
+          </div>
+          <div class="field">
+            <label>Nombre d'enfants</label>
+            <input type="number" name="nombre_enfants" min="0">
+          </div>
+        </div>
+
+        <!-- II. Adresse -->
+        <h3 class="form-section-title"><i data-lucide="map-pin"></i> Votre adresse</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label>N° maison / rue</label>
+            <input type="text" name="adresse_rue">
+          </div>
+          <div class="field">
+            <label>Département</label>
+            <select name="departement" id="departement-select">
+              <option value="">— Sélectionner —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Commune</label>
+            <input type="text" name="commune" list="commune-list" placeholder="Tapez ou choisissez">
+            <datalist id="commune-list"></datalist>
+          </div>
+          <div class="field">
+            <label>Ville / Village / Section</label>
+            <input type="text" name="localite">
+          </div>
+          <div class="field">
+            <label>Province / Arrondissement</label>
+            <input type="text" name="province">
+          </div>
+        </div>
+
+        <!-- III. Service & référence -->
+        <h3 class="form-section-title"><i data-lucide="clipboard-list"></i> Service &amp; référence</h3>
+        <div class="form-grid">
+          <div class="field full">
+            <label>Type de service souhaité</label>
+            <div class="check-grid">
+              <label><input type="checkbox" name="type_service" value="PO"> P/O (Prothèse / Orthèse)</label>
+              <label><input type="checkbox" name="type_service" value="PHYSIO"> Physiothérapie</label>
+              <label><input type="checkbox" name="type_service" value="MED"> Médical</label>
+            </div>
+          </div>
+          <div class="field full">
+            <label>Envoyé de (qui vous a référé ?)</label>
+            <div class="check-grid" id="envoye-de-group"></div>
+          </div>
+          <div class="field">
+            <label>Autre médecin / hôpital / physio</label>
+            <input type="text" name="envoye_de_autre">
+          </div>
+          <div class="field full">
+            <label>Déjà appareillé ?</label>
+            <div class="check-grid">
+              <label><input type="radio" name="deja_appareille" value="non"> Non</label>
+              <label><input type="radio" name="deja_appareille" value="oui"> Oui</label>
+              <label><input type="radio" name="deja_appareille" value="oui_hrc"> Oui, par Haiti Reh-Care</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- IV. Santé -->
+        <h3 class="form-section-title"><i data-lucide="heart-pulse"></i> Votre santé</h3>
+        <div class="form-grid">
+          <div class="field full">
+            <label>Diagnostic / Invalidité</label>
+            <input type="text" name="diagnostic" placeholder="Ex : amputation tibiale, lombalgie…">
+          </div>
+          <div class="field full">
+            <label>Cause de l'invalidité</label>
+            <div class="check-grid">
+              <label><input type="checkbox" name="cause_invalidite" value="congenitale_infectieuse"> Congénitale / Infectieuse</label>
+              <label><input type="checkbox" name="cause_invalidite" value="cancereuse"> Cancéreuse</label>
+              <label><input type="checkbox" name="cause_invalidite" value="traumatique"> Traumatique</label>
+              <label><input type="checkbox" name="cause_invalidite" value="vasculaire"> Vasculaire</label>
+            </div>
+          </div>
+          <div class="field full">
+            <label>Raison du trauma (si applicable)</label>
+            <div class="check-grid">
+              <label><input type="checkbox" name="raison_trauma" value="morsure"> Morsure</label>
+              <label><input type="checkbox" name="raison_trauma" value="accident_professionnel"> Accident professionnel</label>
+              <label><input type="checkbox" name="raison_trauma" value="accident_circulation"> Accident de circulation</label>
+              <label><input type="checkbox" name="raison_trauma" value="accident_sport"> Accident de sport</label>
+              <label><input type="checkbox" name="raison_trauma" value="conflit"> Liée au conflit</label>
+            </div>
+          </div>
+          <div class="field full">
+            <label>Motif de consultation</label>
+            <textarea name="motif_consultation" placeholder="Décrivez brièvement pourquoi vous consultez…"></textarea>
+          </div>
+          <div class="field">
+            <label>Antécédent médical</label>
+            <textarea name="antecedent_medical" placeholder="Maladies, chirurgies…"></textarea>
+          </div>
+          <div class="field">
+            <label>Antécédent familial</label>
+            <textarea name="antecedent_familial" placeholder="Problèmes de santé familiaux…"></textarea>
+          </div>
+          <div class="field">
+            <label>Localisation de la douleur</label>
+            <input type="text" name="douleur_localisation">
+          </div>
+          <div class="field full">
+            <label>Niveau de douleur actuelle (0 = aucune, 10 = pire)</label>
+            <div class="pain-scale">
+              <label><input type="radio" name="douleur_niveau" value="0">0</label>
+              <label><input type="radio" name="douleur_niveau" value="1">1</label>
+              <label><input type="radio" name="douleur_niveau" value="2">2</label>
+              <label><input type="radio" name="douleur_niveau" value="3">3</label>
+              <label><input type="radio" name="douleur_niveau" value="4">4</label>
+              <label><input type="radio" name="douleur_niveau" value="5">5</label>
+              <label><input type="radio" name="douleur_niveau" value="6">6</label>
+              <label><input type="radio" name="douleur_niveau" value="7">7</label>
+              <label><input type="radio" name="douleur_niveau" value="8">8</label>
+              <label><input type="radio" name="douleur_niveau" value="9">9</label>
+              <label><input type="radio" name="douleur_niveau" value="10">10</label>
+            </div>
+          </div>
+          <div class="field full">
+            <label>Vos attentes</label>
+            <textarea name="attentes_patient" placeholder="Qu'attendez-vous du traitement ?"></textarea>
+          </div>
+        </div>
+
+        <!-- V. Amputation (optionnel) -->
+        <h3 class="form-section-title"><i data-lucide="bone"></i> Amputation <span style="font-weight:400; font-size:13px; color:var(--rc-text-3);">(seulement si vous êtes concerné)</span></h3>
+        <div class="form-grid">
+          <div class="field">
+            <label>Date d'amputation</label>
+            <input type="date" name="date_amputation">
+          </div>
+          <div class="field">
+            <label>Hôpital d'amputation</label>
+            <input type="text" name="hopital_amputation">
+          </div>
+          <div class="field">
+            <label>Région de l'accident</label>
+            <input type="text" name="region_accident" list="dept-list">
+            <datalist id="dept-list"></datalist>
+          </div>
+          <div class="field">
+            <label>Lieu de l'accident</label>
+            <input type="text" name="lieu_accident">
+          </div>
+          <div class="field full">
+            <fieldset class="fieldset-box">
+              <legend>Membre inférieur</legend>
+              <div class="form-grid">
+                <div>
+                  <div style="font-size:12px; font-weight:700; margin-bottom:6px;">GAUCHE</div>
+                  <div class="check-grid" id="amp-mi-gauche"></div>
+                </div>
+                <div>
+                  <div style="font-size:12px; font-weight:700; margin-bottom:6px;">DROITE</div>
+                  <div class="check-grid" id="amp-mi-droite"></div>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+          <div class="field full">
+            <fieldset class="fieldset-box">
+              <legend>Membre supérieur</legend>
+              <div class="form-grid">
+                <div>
+                  <div style="font-size:12px; font-weight:700; margin-bottom:6px;">GAUCHE</div>
+                  <div class="check-grid" id="amp-ms-gauche"></div>
+                </div>
+                <div>
+                  <div style="font-size:12px; font-weight:700; margin-bottom:6px;">DROITE</div>
+                  <div class="check-grid" id="amp-ms-droite"></div>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+
+        <p style="font-size:12.5px; color:var(--rc-text-3); margin-top:22px;">
+          En envoyant ce formulaire, vous acceptez que le centre utilise ces informations
+          pour préparer votre dossier médical et vous recontacter.
+        </p>
+
+        <button type="submit" class="btn btn-teal btn-lg" id="submit-btn" style="width:100%; justify-content:center; margin-top:14px;">
+          <i data-lucide="send"></i> Envoyer le formulaire
+        </button>
+      </form>
+
+      <!-- Succès -->
+      <div id="success-card" class="form-card hidden" style="text-align:center;">
+        <div class="icon-box teal" style="margin:0 auto 16px;"><i data-lucide="check-circle-2"></i></div>
+        <h3 style="font-size:20px; margin-bottom:8px;">Formulaire envoyé !</h3>
+        <p style="color:var(--rc-text-2); margin-bottom:8px;">
+          Merci — la réception du centre a reçu vos informations automatiquement.
+          L'équipe vous contactera pour confirmer votre dossier et votre rendez-vous.
+        </p>
+        <p style="color:var(--rc-text-3); font-size:13px;">Vous pouvez fermer cette page.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer" id="site-footer"></footer>
+
+  <script>
+    // ============================================================
+    // Fòmilè enskripsyon piblik — pasyan an ranpli sou telefòn li.
+    // Soumèt → erp_public_demande_patient (SECURITY DEFINER) →
+    // sekretè a wè li nan modil Patients > Demandes en ligne.
+    // Paramèt URL: ?a=CODE_ANNEXE (ex. ?a=PAP) — soti nan QR/lyen an.
+    // ============================================================
+
+    const HAITI_GEO = {
+      'Artibonite': ['Anse-Rouge','Dessalines','Desdunes','Ennery','Gonaïves','Grande-Saline','Gros-Morne','La Chapelle',"L'Estère",'Liancourt','Marmelade',"Petite Rivière de l'Artibonite",'Saint-Marc',"Saint-Michel-de-l'Attalaye",'Terre-Neuve','Verrettes'],
+      'Centre': ['Belladère','Boucan-Carré','Cerca-Carvajal','Cerca-la-Source','Hinche','Lascahobas','Maïssade','Mirebalais',"Saut-d'Eau",'Savanette','Thomassique','Thomonde'],
+      "Grand'Anse": ['Abricots',"Anse-d'Hainault",'Beaumont','Bonbon','Chambellan','Corail','Dame-Marie','Jérémie','Les Irois','Marfranc','Moron','Pestel','Roseaux'],
+      'Nippes': ["Anse-à-Veau",'Arnaud','Baradères','Fonds-des-Nègres','Grand-Boucan',"L'Asile",'Miragoâne','Paillant','Petit-Trou-de-Nippes','Petite-Rivière-de-Nippes','Plaisance-du-Sud'],
+      'Nord': ['Acul-du-Nord','Bahon','Bas-Limbé','Borgne','Cap-Haïtien','Dondon','Grande-Rivière-du-Nord','La Victoire','Limbé','Limonade','Milot','Pignon','Pilate','Plaine-du-Nord','Plaisance','Port-Margot','Quartier-Morin','Ranquitte','Saint-Raphaël'],
+      'Nord-Est': ['Capotille','Carice','Ferrière','Fort-Liberté','Mombin-Crochu','Mont-Organisé','Ouanaminthe','Perches','Sainte-Suzanne','Terrier-Rouge','Trou-du-Nord','Vallières'],
+      'Nord-Ouest': ['Anse-à-Foleur','Baie-de-Henne','Bassin-Bleu','Bombardopolis','Chansolme','Île de la Tortue','Jean-Rabel','La Pointe-des-Palmistes','Môle-Saint-Nicolas','Port-de-Paix','Saint-Louis-du-Nord'],
+      'Ouest': ['Anse-à-Galets','Arcahaie','Cabaret','Carrefour','Cité Soleil','Cornillon','Croix-des-Bouquets','Delmas','Fonds-Verrettes','Ganthier','Grand-Goâve','Gressier','Kenscoff','Léogâne','Petit-Goâve','Pétion-Ville','Pointe-à-Raquette','Port-au-Prince','Tabarre','Thomazeau'],
+      'Sud': ['Aquin','Arniquet','Camp-Perrin','Cavaillon','Chantal','Chardonnières','Île-à-Vache','Les Anglais','Les Cayes','Maniche','Port-Salut','Roche-à-Bateaux','Saint-Jean-du-Sud','Saint-Louis-du-Sud','Tiburon','Torbeck'],
+      'Sud-Est': ['Anse-à-Pitre','Bainet','Belle-Anse','Cayes-Jacmel','Côtes-de-Fer','Grand-Gosier','Jacmel','La Vallée-de-Jacmel','Marigot','Thiotte']
+    };
+    const ENVOYE_DE_OPTIONS = [
+      'Clinique Saint Esprit', 'Physio Stephanie', 'Physio Erase Raynald',
+      'Dr Desmangles', 'Dr Moise', 'Dr Edmond', 'Dr Sergio'
+    ];
+    const AMP_MI = [
+      ['desarticulation_hanche', 'Désarticulation de la hanche'],
+      ['femorale', 'Fémorale'], ['tibiale', 'Tibiale'],
+      ['desarticulation_cheville', 'Désarticulation de cheville'],
+      ['partielle_pied', 'Partielle du pied']
+    ];
+    const AMP_MS = [
+      ['desarticulation_epaule', "Désarticulation d'épaule"],
+      ['humerale', 'Humérale'], ['radiale', 'Radiale'],
+      ['desarticulation_poignet', 'Désarticulation poignet'],
+      ['partielle_main', 'Partielle de la main']
+    ];
+
+    const _annexeCode = new URLSearchParams(location.search).get('a') || null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initSite();
+
+      // Lis referan yo
+      document.getElementById('envoye-de-group').innerHTML = ENVOYE_DE_OPTIONS.map(o =>
+        `<label><input type="checkbox" name="envoye_de" value="${o}"> ${o}</label>`).join('');
+
+      // Nivo anplitasyon
+      const ampBoxes = { 'amp-mi-gauche': AMP_MI, 'amp-mi-droite': AMP_MI,
+                         'amp-ms-gauche': AMP_MS, 'amp-ms-droite': AMP_MS };
+      Object.entries(ampBoxes).forEach(([id, opts]) => {
+        document.getElementById(id).innerHTML = opts.map(([v, l]) =>
+          `<label><input type="checkbox" name="${id.replace(/-/g, '_')}" value="${v}"> ${l}</label>`).join('');
+      });
+
+      // Depatman + datalist yo
+      const deptSel = document.getElementById('departement-select');
+      deptSel.innerHTML = '<option value="">— Sélectionner —</option>' +
+        Object.keys(HAITI_GEO).map(d => `<option value="${d}">${d}</option>`).join('');
+      document.getElementById('dept-list').innerHTML =
+        Object.keys(HAITI_GEO).map(d => `<option value="${d}">`).join('');
+
+      const fillCommunes = () => {
+        const communes = deptSel.value && HAITI_GEO[deptSel.value]
+          ? HAITI_GEO[deptSel.value]
+          : Object.values(HAITI_GEO).flat().sort();
+        document.getElementById('commune-list').innerHTML =
+          communes.map(c => `<option value="${c}">`).join('');
+      };
+      deptSel.addEventListener('change', fillCommunes);
+      fillCommunes();
+    });
+
+    function alertMsg(type, msg) {
+      const icon = type === 'error' ? 'alert-circle' : 'check-circle-2';
+      document.getElementById('alert-zone').innerHTML =
+        `<div class="alert alert-${type}"><i data-lucide="${icon}"></i><span>${Site.esc(msg)}</span></div>`;
+      lucide.createIcons();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Menm non kolòn erp_patients yo — sekretè a konvèti l an dosye
+    // san re-tapaj (prefill nan fòm konplè a).
+    function collectInscription(form) {
+      const fd = new FormData(form);
+      const data = {};
+
+      ['nom','prenom','date_naissance','sexe','etat_civil','carte_identite',
+       'phone','email','personne_responsable','profession','activite',
+       'activite_autre','adresse_rue','departement','commune','localite',
+       'province','envoye_de_autre','deja_appareille','diagnostic',
+       'motif_consultation','antecedent_medical','antecedent_familial',
+       'douleur_localisation','attentes_patient','date_amputation',
+       'hopital_amputation','region_accident','lieu_accident']
+        .forEach(k => {
+          const v = fd.get(k);
+          if (v !== null && v !== '') data[k] = v;
+        });
+
+      ['type_service','envoye_de','cause_invalidite','raison_trauma'].forEach(k => {
+        const vals = fd.getAll(k);
+        if (vals.length) data[k] = vals;
+      });
+
+      const n = parseInt(fd.get('nombre_enfants'), 10);
+      if (!isNaN(n)) data.nombre_enfants = n;
+      const dn = parseInt(fd.get('douleur_niveau'), 10);
+      if (!isNaN(dn)) data.douleur_niveau = dn;
+
+      const amp = {};
+      ['mi_gauche','mi_droite','ms_gauche','ms_droite'].forEach(side => {
+        const vals = fd.getAll('amp_' + side);
+        if (vals.length) amp[side] = vals;
+      });
+      if (Object.keys(amp).length) data.niveau_amputation = amp;
+
+      return data;
+    }
+
+    document.getElementById('inscription-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader-2"></i> Envoi…';
+      lucide.createIcons();
+
+      try {
+        const data = collectInscription(e.target);
+        if (!data.nom) throw new Error('Le nom est obligatoire.');
+
+        const { error } = await db.rpc('erp_public_demande_patient', {
+          p_data: data,
+          p_annexe_code: _annexeCode
+        });
+        if (error) throw error;
+
+        document.getElementById('inscription-form').classList.add('hidden');
+        document.getElementById('success-card').classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        console.error('inscription error:', err);
+        alertMsg('error', err.message || "Erreur lors de l'envoi. Réessayez ou contactez le centre.");
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="send"></i> Envoyer le formulaire';
+        lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>
