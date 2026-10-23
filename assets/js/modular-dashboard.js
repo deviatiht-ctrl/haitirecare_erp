@@ -101,44 +101,93 @@ async function initModularDashboard() {
 
     let clients = [];
     let produits = [];
+    let clientsCount = 0;
+    let produitsCount = 0;
     let usersCount = 1;
     let tachesCount = 0;
+    let rdvCount = 0;
+    let caisseTotal = 0;
 
     if (has(peopleModule)) {
       try {
-        const { data } = await db.from(`erp_${peopleModule}`).select('*').order('created_at', { ascending: false }).limit(6);
-        if (data) clients = data;
-      } catch (e) { console.warn('Clients:', e); }
+        let countQ = db.from(`erp_${peopleModule}`).select('id', { count: 'exact', head: true });
+        let listQ = db.from(`erp_${peopleModule}`).select('*').order('created_at', { ascending: false }).limit(6);
+        if (typeof applyBranchFilter === 'function') {
+          countQ = applyBranchFilter(countQ);
+          listQ = applyBranchFilter(listQ);
+        }
+        const [cRes, lRes] = await Promise.all([countQ, listQ]);
+        if (cRes?.count !== null && cRes?.count !== undefined) clientsCount = cRes.count;
+        if (lRes?.data) clients = lRes.data;
+      } catch (e) { console.warn('Clients/Patients:', e); }
     }
 
     if (has('stock') || has('catalogue') || has('pharmacie') || has('materiel_orthopedique')) {
       try {
-        const { data } = await db.from('erp_produits').select('*').order('created_at', { ascending: false }).limit(6);
-        if (data) produits = data;
+        let countQ = db.from('erp_produits').select('id', { count: 'exact', head: true }).eq('is_active', true);
+        let listQ = db.from('erp_produits').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(6);
+        if (typeof applyBranchFilter === 'function') {
+          countQ = applyBranchFilter(countQ);
+          listQ = applyBranchFilter(listQ);
+        }
+        const [cRes, lRes] = await Promise.all([countQ, listQ]);
+        if (cRes?.count !== null && cRes?.count !== undefined) produitsCount = cRes.count;
+        if (lRes?.data) produits = lRes.data;
       } catch (e) { console.warn('Produits:', e); }
     }
 
     if (has('users') || has('rh') || has('employes')) {
       try {
-        const { count } = await db.from('erp_users').select('id', { count: 'exact', head: true });
+        const { count } = await db.from('erp_users').select('id', { count: 'exact', head: true }).eq('is_active', true);
         if (count) usersCount = count;
       } catch (e) { console.warn('Users count:', e); }
     }
 
     if (has('taches') || has('projets')) {
       try {
-        const { count } = await db.from('erp_taches').select('id', { count: 'exact', head: true }).neq('statut', 'termine');
+        let q = db.from('erp_taches').select('id', { count: 'exact', head: true }).neq('statut', 'termine');
+        if (typeof applyBranchFilter === 'function') q = applyBranchFilter(q);
+        const { count } = await q;
         tachesCount = count || 0;
       } catch (e) { console.warn('Taches:', e); }
+    }
+
+    if (has('rdv') || has('agenda')) {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        let q = db.from('erp_rdv').select('id', { count: 'exact', head: true }).gte('date_rdv', today);
+        if (typeof applyBranchFilter === 'function') q = applyBranchFilter(q);
+        const { count } = await q;
+        rdvCount = count || 0;
+      } catch (e) { console.warn('RDV count:', e); }
+    }
+
+    if (has('finances') || has('caisse') || has('encaissements') || has('facturation')) {
+      try {
+        const monthStart = new Date().toISOString().slice(0, 8) + '01';
+        let q = db.from('erp_encaissements').select('montant').gte('date_doc', monthStart);
+        if (typeof applyBranchFilter === 'function') q = applyBranchFilter(q);
+        const { data: encData } = await q;
+        if (encData && encData.length) {
+          caisseTotal = encData.reduce((s, x) => s + (parseFloat(x.montant) || 0), 0);
+        } else {
+          let qRev = db.from('erp_revenus').select('montant').gte('date_transaction', monthStart);
+          if (typeof applyBranchFilter === 'function') qRev = applyBranchFilter(qRev);
+          const { data: revData } = await qRev;
+          if (revData && revData.length) {
+            caisseTotal = revData.reduce((s, x) => s + (parseFloat(x.montant) || 0), 0);
+          }
+        }
+      } catch (e) { console.warn('Finances total:', e); }
     }
 
     // 6. Rendu dynamique
     renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, firstName, userRole });
     if (typeof renderBranchSwitcher === 'function') renderBranchSwitcher();
-    renderDynamicStats({ clientsCount: clients.length, produitsCount: produits.length, usersCount, tachesCount, currency, has, peopleModule });
+    renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCount, rdvCount, caisseTotal, currency, has, peopleModule, isClinical });
     renderDynamicSidebar({ companyName, typeLabel, firstName, lastName, userRole });
     renderDynamicQuickActions();
-    renderDynamicContent({ produits, clients, has, peopleModule, currency });
+    renderDynamicContent({ produits, clients, has, peopleModule, currency, isClinical });
     renderBranchComparison();
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -221,52 +270,74 @@ function renderDynamicHeader({ companyName, sectorName, typeLabel, typeIcon, fir
 // --------------------------------------------------------------
 // Cartes KPI — generees selon les modules actives
 // --------------------------------------------------------------
-function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCount, currency, has, peopleModule }) {
+function renderDynamicStats({ clientsCount, produitsCount, usersCount, tachesCount, rdvCount, caisseTotal, currency, has, peopleModule, isClinical }) {
   const statsContainer = document.getElementById('dynamic-stats');
   if (!statsContainer) return;
 
   const cards = [];
 
-  if (has('stock') || has('catalogue') || has('pharmacie') || has('materiel_orthopedique')) {
-    cards.push({
-      icon: 'package', color: '#3b82f6',
-      value: produitsCount,
-      label: erpTerm('produits', 'Produits & Services'),
-      badge: 'Catalogue'
-    });
-  }
-
+  // 1. Pasyan / Kliyan
   if (has(peopleModule)) {
     cards.push({
-      icon: peopleModule === 'patients' ? 'heart-pulse' : 'users', color: '#10b981',
-      value: clientsCount,
-      label: `${erpTerm('clients', 'Clients')} Enregistrés`,
-      badge: 'Portefeuille'
+      icon: isClinical ? 'heart-pulse' : 'users',
+      color: '#10b981',
+      value: Number(clientsCount || 0).toLocaleString('fr-HT'),
+      label: isClinical ? 'Patients Enregistrés' : `${erpTerm('clients', 'Clients')} Enregistrés`,
+      badge: isClinical ? 'Dossiers' : 'Portefeuille'
     });
   }
 
-  if (has('taches') || has('projets')) {
+  // 2. Stock / Matériel
+  if (has('stock') || has('catalogue') || has('pharmacie') || has('materiel_orthopedique')) {
     cards.push({
-      icon: 'check-square', color: '#f59e0b',
-      value: tachesCount,
-      label: 'Tâches & Projets en cours',
-      badge: 'Activité'
+      icon: 'package',
+      color: '#3b82f6',
+      value: Number(produitsCount || 0).toLocaleString('fr-HT'),
+      label: isClinical ? 'Articles & Matériel' : erpTerm('produits', 'Produits & Services'),
+      badge: 'Stock'
     });
   }
 
-  if (has('finances') || has('caisse') || has('facturation') || has('facturation_medical')) {
+  // 3. Rendez-vous (si clinique)
+  if (isClinical && (has('rdv') || has('agenda'))) {
     cards.push({
-      icon: 'dollar-sign', color: '#22c55e',
-      value: 'Actif',
-      label: 'Finances & Facturation',
+      icon: 'calendar-clock',
+      color: '#8b5cf6',
+      value: Number(rdvCount || 0).toLocaleString('fr-HT'),
+      label: 'Rendez-vous à venir',
+      badge: 'Planning'
+    });
+  }
+
+  // 4. Finances / Caisse
+  if (has('finances') || has('caisse') || has('encaissements') || has('facturation')) {
+    const fmtMoney = (v) => `${Number(Math.round(v)).toLocaleString('fr-HT')} ${currency}`;
+    cards.push({
+      icon: 'banknote',
+      color: '#22c55e',
+      value: caisseTotal > 0 ? fmtMoney(caisseTotal) : `0 ${currency}`,
+      label: 'Encaissements du mois',
       badge: `Devise: ${currency}`
     });
   }
 
+  // 5. Tâches en cours
+  if (has('taches') || has('projets')) {
+    cards.push({
+      icon: 'check-square',
+      color: '#f59e0b',
+      value: Number(tachesCount || 0).toLocaleString('fr-HT'),
+      label: 'Tâches en cours',
+      badge: 'Activité'
+    });
+  }
+
+  // 6. Équipe / Collaborateurs
   if (has('users') || has('rh') || has('employes')) {
     cards.push({
-      icon: 'user-check', color: '#8b5cf6',
-      value: usersCount,
+      icon: 'user-check',
+      color: '#06b6d4',
+      value: Number(usersCount || 0).toLocaleString('fr-HT'),
       label: `${erpTerm('users', 'Collaborateurs')} & Rôles`,
       badge: 'Équipe'
     });
@@ -439,42 +510,60 @@ function renderDynamicQuickActions() {
 // --------------------------------------------------------------
 // Contenu principal — sections selon les modules actives
 // --------------------------------------------------------------
-function renderDynamicContent({ produits, clients, has, peopleModule, currency }) {
+function renderDynamicContent({ produits, clients, has, peopleModule, currency, isClinical }) {
   const contentContainer = document.getElementById('dynamic-content');
   if (!contentContainer) return;
 
-  const money = (v) => `${v || 0} ${currency}`;
+  const money = (v) => `${Number(v || 0).toLocaleString('fr-HT')} ${currency}`;
 
-  const produitsHtml = produits.length > 0 ? produits.map(p => `
-    <tr>
-      <td class="td-accent">${p.code || '-'}</td>
-      <td class="td-strong">${p.designation}</td>
-      <td class="td-muted">${p.categorie || '-'}</td>
-      <td class="td-success">${money(p.prix_vente)}</td>
-      <td>
-        <span class="dash-badge dash-badge-success">Disponible</span>
-      </td>
-    </tr>
-  `).join('') : `
+  const produitsHtml = produits.length > 0 ? produits.map(p => {
+    const prix = p.prix_vente || p.prix_unitaire || 0;
+    const qty = p.quantite !== undefined && p.quantite !== null ? p.quantite : null;
+    const badgeText = qty !== null ? (qty > 0 ? `${qty} en stock` : 'Rupture') : 'Disponible';
+    const badgeCls = qty !== null && qty === 0 ? 'dash-badge-danger' : 'dash-badge-success';
+    return `
+      <tr>
+        <td class="td-accent">${p.code || '-'}</td>
+        <td class="td-strong">${p.designation}</td>
+        <td class="td-muted">${p.categorie || '-'}</td>
+        <td class="td-success">${money(prix)}</td>
+        <td>
+          <span class="dash-badge ${badgeCls}">${badgeText}</span>
+        </td>
+      </tr>
+    `;
+  }).join('') : `
     <tr><td colspan="5" class="dash-empty">Aucun élément enregistré pour le moment.</td></tr>
   `;
 
-  const clientsHtml = clients.length > 0 ? clients.map(c => `
-    <div class="dash-list-row">
-      <div class="dash-list-left">
-        <div class="dash-avatar">
-          ${(c.nom || 'C')[0].toUpperCase()}
+  const clientsHtml = clients.length > 0 ? clients.map(c => {
+    const nomComplet = `${c.nom || ''} ${c.prenom || ''}`.trim() || 'Sans nom';
+    const initial = (c.nom || c.prenom || 'P')[0].toUpperCase();
+    const sub = isClinical
+      ? (c.phone ? `Tél: ${c.phone}` : (c.notes || 'Dossier patient'))
+      : (c.company || c.email || c.phone || '-');
+    const badge = isClinical
+      ? (c.code || c.numero_dossier ? `#${c.code || c.numero_dossier}` : (Array.isArray(c.type_service) ? c.type_service.join(', ') : (c.type_service || 'Patient')))
+      : (c.type || 'Client');
+    const link = isClinical ? `module.html?m=patients` : `modules/clients/fiche.html?id=${c.id}`;
+
+    return `
+      <div class="dash-list-row" onclick="window.location.href='${link}'" style="cursor: pointer;">
+        <div class="dash-list-left">
+          <div class="dash-avatar">
+            ${initial}
+          </div>
+          <div>
+            <div class="dash-row-title">${nomComplet}</div>
+            <div class="dash-row-sub">${sub}</div>
+          </div>
         </div>
-        <div>
-          <div class="dash-row-title">${c.nom} ${c.prenom || ''}</div>
-          <div class="dash-row-sub">${c.company || c.email || '-'}</div>
-        </div>
+        <span class="dash-badge dash-badge-primary">
+          ${badge}
+        </span>
       </div>
-      <span class="dash-badge dash-badge-primary">
-        ${c.type || 'Client'}
-      </span>
-    </div>
-  `).join('') : `
+    `;
+  }).join('') : `
     <div class="dash-empty">Aucun enregistrement.</div>
   `;
 

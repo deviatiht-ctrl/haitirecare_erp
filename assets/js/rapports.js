@@ -1,12 +1,15 @@
 // Reports module helper functions
 
 export async function getGlobalReport(dateStart, dateEnd) {
+  const isClinical = (typeof isClinicalEnterprise === 'function' && isClinicalEnterprise()) || window.enterpriseContext?.type?.code === 'physiotherapy' || window.enterpriseContext?.type?.code === 'hospital';
+  const clientTable = isClinical ? 'erp_patients' : 'erp_clients';
+
   const [revenuesResult, expensesResult, clientsResult, employeesResult, productsResult, tasksResult] = await Promise.all([
     db.from('erp_revenus').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd),
     db.from('erp_depenses').select('*').gte('date_transaction', dateStart).lte('date_transaction', dateEnd),
-    db.from('erp_clients').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    db.from(clientTable).select('id', { count: 'exact', head: true }).eq('is_active', true),
     db.from('erp_users').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    db.from('erp_produits').select('*').eq('is_active', true),
+    db.from('erp_produits').select('*', { count: 'exact' }).eq('is_active', true),
     db.from('erp_taches').select('*')
   ]);
 
@@ -28,7 +31,7 @@ export async function getGlobalReport(dateStart, dateEnd) {
     entities: {
       clients: clientsResult.count || 0,
       employees: employeesResult.count || 0,
-      products: productsResult.data?.length || 0
+      products: productsResult.count || productsResult.data?.length || 0
     },
     stock: {
       value: stockValue
