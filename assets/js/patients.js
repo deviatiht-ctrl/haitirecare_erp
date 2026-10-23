@@ -212,7 +212,10 @@ function jsonInputs(group, keys) {
 // Preview pwochen kòd pasyan pou yon annex (san enkremante kontè a)
 function annexeNextCodePreview(annexe) {
   if (!annexe) return '—';
-  return `${annexe.code}-${String((annexe.patient_seq || 0) + 1).padStart(4, '0')}`;
+  const prefix = annexe.code || 'HRC';
+  const nextSeq = (annexe.patient_seq || 0) + 1;
+  const padLen = prefix === 'HRC' ? 6 : 4;
+  return `${prefix}-${String(nextSeq).padStart(padLen, '0')}`;
 }
 
 function renderPatientFormHTML(user, canChooseAnnexe) {
@@ -243,12 +246,11 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
       <summary class="card-header" style="cursor:pointer;"><h3 class="card-title">I. Dossier &amp; Informations personnelles</h3></summary>
       <div class="card-body" style="padding: var(--space-5); display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px;">
         <div class="form-group">
-          <label class="form-label">Code patient (manuel)</label>
-          <input type="text" class="form-input" name="code" id="code-patient"
-                 placeholder="Ex: HRC-00123"
-                 value="${escH(_editingPatient?.code || '')}"
-                 style="font-weight:600;">
-          <small style="color:var(--clr-text-muted,#94a3b8);">Saisissez le code du dossier patient</small>
+          <label class="form-label">Code patient (automatique)</label>
+          <input type="text" class="form-input" id="code-preview" readonly
+                 value="${_editingPatient?.code || annexeNextCodePreview(userAnnexe)}"
+                 style="background: var(--clr-bg-soft, #f1f5f9); font-weight:600;">
+          ${_editingPatient ? '' : '<small style="color:var(--clr-text-muted,#94a3b8);">Numérotation automatique qui continue la série</small>'}
         </div>
         ${annexeField}
         ${inText('numero_dossier', 'N° du dossier (U.N)')}
@@ -1042,6 +1044,18 @@ function renderPatientForm(container, user) {
     ${renderPatientFormHTML(user, canChoose)}`;
 
   const form = document.getElementById('patient-form');
+
+  // Direksyon: preview kòd la swiv annex ki chwazi a
+  const annexeSelect = form.querySelector('#annexe-select');
+  const codePreview = form.querySelector('#code-preview');
+  const updateCodePreview = () => {
+    const opt = annexeSelect?.selectedOptions?.[0];
+    if (opt && codePreview && !_editingPatient) codePreview.value = opt.dataset.code || '—';
+  };
+  if (annexeSelect) {
+    annexeSelect.addEventListener('change', updateCodePreview);
+    updateCodePreview();
+  }
 
 
   // Depatman -> filtre lis komin yo
