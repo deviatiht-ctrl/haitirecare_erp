@@ -4,6 +4,58 @@
 -- 2. N° Dossier = série générale HRC (HRC-001162...)
 -- ============================================================
 
+-- 0. Nettoyer les doublons d'annexe éventuels et mettre à jour le code des patients existants
+DO $$
+DECLARE
+  v_annexe_id uuid;
+  v_prefix text;
+BEGIN
+  -- Nettoyer tout conflit avec une annexe 'HRC' temporaire
+  IF EXISTS (SELECT 1 FROM erp_annexes WHERE code = 'HRC') AND EXISTS (SELECT 1 FROM erp_annexes WHERE code = 'PAP') THEN
+    UPDATE erp_users SET annexe_id = (SELECT id FROM erp_annexes WHERE code = 'PAP' LIMIT 1)
+     WHERE annexe_id = (SELECT id FROM erp_annexes WHERE code = 'HRC' LIMIT 1);
+    UPDATE erp_patients SET annexe_id = (SELECT id FROM erp_annexes WHERE code = 'PAP' LIMIT 1)
+     WHERE annexe_id = (SELECT id FROM erp_annexes WHERE code = 'HRC' LIMIT 1);
+    DELETE FROM erp_annexes WHERE code = 'HRC';
+  ELSIF EXISTS (SELECT 1 FROM erp_annexes WHERE code = 'HRC') AND NOT EXISTS (SELECT 1 FROM erp_annexes WHERE code = 'PAP') THEN
+    UPDATE erp_annexes SET code = 'PAP', nom = 'Siège Principal (Port-au-Prince)' WHERE code = 'HRC';
+  END IF;
+
+  -- Sélectionner l'annexe principale
+  SELECT id, code INTO v_annexe_id, v_prefix FROM erp_annexes
+   WHERE is_active = true
+   ORDER BY is_principale DESC, (code = 'PAP') DESC, (code = 'PRN') DESC, created_at
+   LIMIT 1;
+
+  IF v_annexe_id IS NOT NULL THEN
+    -- Mettre à jour les patients dont le code commence par HRC- vers le préfixe de l'annexe (ex: PAP-0001...)
+    WITH numbered AS (
+      SELECT id, ROW_NUMBER() OVER (
+        ORDER BY
+          COALESCE(NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int, 999999),
+          date_enregistrement ASC NULLS LAST,
+          id ASC
+      ) as seq
+      FROM erp_patients
+      WHERE (annexe_id = v_annexe_id OR annexe_id IS NULL)
+        AND (code ILIKE 'HRC-%' OR code IS NULL)
+    )
+    UPDATE erp_patients p
+       SET annexe_id = v_annexe_id,
+           code = v_prefix || '-' || lpad(n.seq::text, 4, '0')
+      FROM numbered n
+     WHERE p.id = n.id;
+
+    -- Ajuster le compteur patient_seq de l'annexe
+    UPDATE erp_annexes
+       SET patient_seq = GREATEST(
+         patient_seq,
+         (SELECT COUNT(*) FROM erp_patients WHERE annexe_id = v_annexe_id)
+       )
+     WHERE id = v_annexe_id;
+  END IF;
+END $$;
+
 -- 1. Mettre à jour la fonction erp_register_patient
 CREATE OR REPLACE FUNCTION erp_register_patient(p_data jsonb DEFAULT '{}')
 RETURNS jsonb AS $$
