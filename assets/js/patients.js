@@ -531,6 +531,49 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
       </div>
     </details>
 
+    <!-- X. PRISE EN CHARGE INITIALE & CAISSE (Consultation / Achat) -->
+    ${!_editingPatient ? `
+    <details class="card" open style="margin-bottom:16px; border: 1.5px solid var(--clr-primary, #4f46e5);">
+      <summary class="card-header" style="cursor:pointer; background: rgba(79, 70, 229, 0.05);">
+        <h3 class="card-title" style="color:var(--clr-primary,#4f46e5); display:flex; align-items:center; gap:8px;">
+          <i data-lucide="banknote"></i> X. Prise en charge initiale — Caisse &amp; Consultation
+        </h3>
+      </summary>
+      <div class="card-body" style="padding: var(--space-5); display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px;">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:600; cursor:pointer;">
+            <input type="checkbox" name="caisse_demande_paiement" id="caisse-demande-paiement" checked value="1">
+            Transmettre à la Caisse pour encaissement (Consultation / Achat)
+          </label>
+          <small style="color:var(--clr-text-muted,#94a3b8); display:block; margin-top:4px;">
+            Le comptable recevra automatiquement ce patient dans sa file de caisse pour valider le paiement et imprimer le reçu.
+          </small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motif de l'opération *</label>
+          <select name="caisse_motif" class="form-input form-select" id="caisse-motif-select">
+            <option value="Consultation / Évaluation initiale" selected>Consultation / Évaluation initiale</option>
+            <option value="Consultation de suivi">Consultation de suivi</option>
+            <option value="Séance de physiothérapie">Séance de physiothérapie</option>
+            <option value="Achat matériel / équipement">Achat matériel / équipement</option>
+            <option value="Autre service">Autre service</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Montant à encaisser *</label>
+          <input type="number" name="caisse_montant" class="form-input" placeholder="Ex: 1500" value="1500" step="any">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Devise</label>
+          <select name="caisse_devise" class="form-input form-select">
+            <option value="HTG" selected>HTG (Gourdes)</option>
+            <option value="USD">USD (Dollars)</option>
+          </select>
+        </div>
+      </div>
+    </details>
+    ` : ''}
+
     <div style="display:flex; gap:12px; flex-wrap:wrap; position:sticky; bottom:0; padding:12px 0; background: var(--clr-bg, #fff);">
       <button type="submit" class="btn btn-primary">
         <i data-lucide="save"></i> ${_editingPatient ? 'Mettre à jour le dossier' : 'Enregistrer le patient'}
@@ -1057,7 +1100,11 @@ function renderPatientList(container) {
                     <button class="table-action-btn" title="Encaisser consultation / achat" style="color:var(--clr-primary,#4f46e5); font-weight:600;" onclick="patientEncaisserDirect('${p.id}')">
                       <i data-lucide="banknote"></i> Encaisser
                     </button>
-                  ` : ''}
+                  ` : `
+                    <button class="table-action-btn" title="Envoyer à la caisse (Consultation ou Achat)" style="color:#0284c7; font-weight:600;" onclick="patientEnvoyerCaisse('${p.id}')">
+                      <i data-lucide="send"></i> Caisse
+                    </button>
+                  `}
                 </td>
               </tr>`).join('')
             : `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucun patient ${hasFilters ? 'ne correspond aux filtres.' : 'enregistré.'}</td></tr>`}
@@ -1204,6 +1251,38 @@ async function submitPatientForm(e, container) {
 
     if (typeof logActivity === 'function') logActivity('Création', 'Patients', `Patient ${created?.code || ''} enregistré`);
 
+    // Transmisyon nan Kès pou konsiltasyon oswa acha si opsyon an te koche
+    let transmisCaisse = false;
+    const sendToCaisse = form.querySelector('#caisse-demande-paiement')?.checked;
+    if (sendToCaisse && created?.id) {
+      try {
+        const cMotif = form.querySelector('#caisse-motif-select')?.value || 'Consultation / Évaluation initiale';
+        const cMontant = parseFloat(form.querySelector('input[name="caisse_montant"]')?.value || 1500);
+        const cDevise = form.querySelector('select[name="caisse_devise"]')?.value || 'HTG';
+        const nomComplet = `${created.nom || ''} ${created.prenom || ''}`.trim();
+        const annId = created.annexe_id || (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null);
+
+        await db.from('erp_encaissements').insert({
+          patient_id: created.id,
+          patient_nom: nomComplet,
+          type_document: 'recu',
+          motif: cMotif,
+          montant: cMontant,
+          devise: cDevise,
+          statut: 'en_attente',
+          date_doc: new Date().toISOString().slice(0, 10),
+          annexe_id: annId || undefined,
+          enterprise_id: window.enterpriseContext?.enterprise?.id || undefined,
+          created_by: window.currentUser?.id
+        });
+
+        await db.from('erp_patients').update({ workflow_step: 'a_encaisser' }).eq('id', created.id);
+        transmisCaisse = true;
+      } catch (caisseErr) {
+        console.warn('[caisse] transmission automatique:', caisseErr);
+      }
+    }
+
     // Si dosye a soti nan yon demand anliy → maké l "traite" + lyen l
     if (_demandeEnCours) {
       try {
@@ -1225,7 +1304,9 @@ async function submitPatientForm(e, container) {
     _patientView = 'list';
     _editingPatient = null;
     await renderPatientsModule(container);
-    if (created?.code) alert(`Patient enregistré — Code: ${created.code}`);
+    if (created?.code) {
+      alert(`Patient enregistré — Code: ${created.code}${transmisCaisse ? '\n✅ Transmis à la Caisse / Comptabilité pour encaissement.' : ''}`);
+    }
   } catch (err) {
     console.error('Patient save error:', err);
     alert('Erreur: ' + (err.message || err));
@@ -1272,6 +1353,9 @@ async function renderPatientDossier(container, p) {
           <i data-lucide="banknote"></i> Encaisser consultation / Achat
         </button>
         ${!isComptable ? `
+          <button class="btn btn-secondary" onclick="patientEnvoyerCaisse('${p.id}')" title="Transmettre à la caisse pour encaissement">
+            <i data-lucide="send"></i> Envoyer à la Caisse
+          </button>
           <button class="btn btn-secondary" onclick="patientEdit('${p.id}')">
             <i data-lucide="pencil"></i> Modifier
           </button>
@@ -1636,28 +1720,129 @@ function patientPrintReceipt(encId, preloadedData = null) {
   }
 }
 
-  document.getElementById('reeval-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const modifs = String(fd.get('modifications_text') || '')
-      .split('\n').map(l => l.trim()).filter(Boolean)
-      .map(l => ({ date: fd.get('date_reevaluation') || null, modification: l }));
-    const rec = {
+function patientEnvoyerCaisse(patientId) {
+  const p = (_patients || []).find(x => x.id === patientId) || _currentPatient;
+  if (!p) return;
+  const nomComplet = `${p.nom || ''} ${p.prenom || ''}`.trim();
+  const codeDossier = p.code || p.numero_dossier || '';
+
+  let m = document.getElementById('patient-caisse-modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'patient-caisse-modal';
+    m.className = 'modal-backdrop';
+    document.body.appendChild(m);
+  }
+
+  m.innerHTML = `
+    <div class="modal" style="max-width:520px; border-radius:12px; background:var(--clr-bg,#fff); box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+      <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--clr-border,#e2e8f0);">
+        <h3 class="modal-title" style="margin:0; font-size:17px; font-weight:700;">Transmettre à la Caisse — ${escH(nomComplet)}</h3>
+        <button class="modal-close" onclick="closePatientCaisseModal()" style="background:none; border:none; cursor:pointer;"><i data-lucide="x"></i></button>
+      </div>
+      <form id="transmettre-caisse-form" class="modal-body" style="padding:20px;">
+        <div style="background:var(--clr-bg-soft,#f1f5f9); padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:13px;">
+          <strong>Patient :</strong> ${escH(nomComplet)} ${codeDossier ? `(${escH(codeDossier)})` : ''} · <strong>Tél :</strong> ${escH(p.phone || '—')}
+        </div>
+        <p style="font-size:13px; color:var(--clr-text-muted,#64748b); margin:0 0 14px;">
+          Ce patient apparaîtra immédiatement dans la file d'attente du comptable pour valider le paiement et imprimer le reçu.
+        </p>
+
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label" style="display:block; font-weight:600; margin-bottom:6px;">Service / Motif *</label>
+          <select name="motif_type" id="tc-motif-type" class="form-select form-input" style="width:100%;">
+            <option value="Consultation / Évaluation initiale" selected>Consultation / Évaluation initiale</option>
+            <option value="Consultation de suivi">Consultation de suivi</option>
+            <option value="Séance Physiothérapie">Séance Physiothérapie</option>
+            <option value="Appareillage (Orthèse/Prothèse)">Appareillage (Orthèse/Prothèse)</option>
+            <option value="Achat matériel / équipement">Achat de matériel / équipement</option>
+            <option value="Autre">Autre service</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="tc-motif-desc-group" style="margin-bottom:14px; display:none;">
+          <label class="form-label" style="display:block; font-weight:600; margin-bottom:6px;">Description précise de l'achat ou service</label>
+          <input type="text" name="motif_desc" id="tc-motif-desc" class="form-input" style="width:100%;" placeholder="Ex: Achat béquilles, fauteuil roulant, bandage...">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label" style="display:block; font-weight:600; margin-bottom:6px;">Montant prévu *</label>
+            <input type="number" name="montant" id="tc-montant" class="form-input" style="width:100%;" min="0" step="any" required value="1500">
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="display:block; font-weight:600; margin-bottom:6px;">Devise</label>
+            <select name="devise" class="form-select form-input" style="width:100%;">
+              <option value="HTG" selected>HTG</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+        </div>
+      </form>
+      <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid var(--clr-border,#e2e8f0);">
+        <button class="btn btn-secondary" onclick="closePatientCaisseModal()">Annuler</button>
+        <button class="btn btn-primary" id="tc-submit-btn" style="background:#0284c7; border-color:#0284c7; font-weight:600;">
+          <i data-lucide="send"></i> Envoyer à la Caisse
+        </button>
+      </div>
+    </div>
+  `;
+  m.style.display = 'flex';
+
+  const typeSel = document.getElementById('tc-motif-type');
+  const descGrp = document.getElementById('tc-motif-desc-group');
+  typeSel?.addEventListener('change', () => {
+    const isAchat = typeSel.value.includes('Achat') || typeSel.value === 'Autre';
+    if (descGrp) descGrp.style.display = isAchat ? 'block' : 'none';
+  });
+
+  document.getElementById('tc-submit-btn')?.addEventListener('click', async () => {
+    const form = document.getElementById('transmettre-caisse-form');
+    if (!form.checkValidity()) return form.reportValidity();
+    const fd = new FormData(form);
+
+    let finalMotif = fd.get('motif_type');
+    const extraDesc = fd.get('motif_desc');
+    if (extraDesc && (finalMotif.includes('Achat') || finalMotif === 'Autre')) {
+      finalMotif = `${finalMotif} (${extraDesc})`;
+    }
+
+    const montant = parseFloat(fd.get('montant') || 0);
+    const devise = fd.get('devise') || 'HTG';
+
+    const annId = p.annexe_id || (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null);
+
+    const { error } = await db.from('erp_encaissements').insert({
       patient_id: p.id,
-      date_reevaluation: fd.get('date_reevaluation') || null,
-      conclusion: fd.get('conclusion') || null,
-      modifications: modifs,
-      frequence_tx: fd.get('frequence_tx') || null,
-      evaluateur_nom: fd.get('evaluateur_nom') || null,
-      created_by: window.currentUser?.id || null
-    };
-    const { error } = await db.from('erp_patient_reevaluations').insert(rec);
-    if (error) { alert('Erreur: ' + error.message); return; }
-    if (typeof logActivity === 'function') logActivity('Réévaluation', 'Patients', `Réévaluation ${p.code || p.nom}`);
-    renderPatientDossier(container, p);
+      patient_nom: nomComplet,
+      type_document: 'recu',
+      motif: finalMotif,
+      montant: montant,
+      devise: devise,
+      statut: 'en_attente',
+      date_doc: new Date().toISOString().slice(0, 10),
+      annexe_id: annId || undefined,
+      enterprise_id: p.enterprise_id || (window.enterpriseContext?.enterprise?.id) || undefined,
+      created_by: window.currentUser?.id
+    });
+
+    if (error) {
+      alert('Erreur: ' + error.message);
+      return;
+    }
+
+    await db.from('erp_patients').update({ workflow_step: 'a_encaisser' }).eq('id', p.id);
+
+    closePatientCaisseModal();
+    alert(`Le patient ${nomComplet} a été transmis à la Caisse pour "${finalMotif}" (${montant} ${devise}).`);
   });
 
   if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closePatientCaisseModal() {
+  const m = document.getElementById('patient-caisse-modal');
+  if (m) m.style.display = 'none';
 }
 
 // --------------------------------------------------------------

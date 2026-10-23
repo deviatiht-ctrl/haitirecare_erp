@@ -52,14 +52,16 @@ async function renderEncaissementsModule(container, meta) {
   du_jour.forEach(e => { const k = e.mode_paiement || 'autre'; byMode[k] = (byMode[k] || 0) + parseFloat(e.montant || 0); });
   const totalJour = Object.values(byMode).reduce((a, b) => a + b, 0);
 
+  const pendingEncaissements = (window._encAll || []).filter(e => e.statut === 'en_attente');
   const pendingDemandes = (window._encDemandes || []).filter(d => d.statut === 'en_attente');
+  const totalPending = pendingEncaissements.length + pendingDemandes.length;
 
   container.innerHTML = `
     <div class="page-header">
       <div>
         <h2 style="margin:0;">Comptabilité &amp; Caisse</h2>
         <p style="margin:4px 0 0; color:var(--clr-text-muted,#94a3b8); font-size:13px;">
-          Reçus, factures, demandes de paiement, clôtures de caisse et ventilation journalière.
+          Reçus, factures, file d'encaissement (consultations &amp; achats), clôtures et ventilation journalière.
         </p>
       </div>
       <div class="page-actions" style="display:flex; gap:8px;">
@@ -91,8 +93,8 @@ async function renderEncaissementsModule(container, meta) {
       <div class="kpi-card" style="cursor:pointer;" onclick="encSwitchTab('demandes')">
         <div class="kpi-icon warning"><i data-lucide="inbox"></i></div>
         <div class="kpi-content">
-          <div class="kpi-label">Demandes à encaisser</div>
-          <div class="kpi-value" style="color:var(--clr-warning,#d97706);">${pendingDemandes.length}</div>
+          <div class="kpi-label">À encaisser (File &amp; Demandes)</div>
+          <div class="kpi-value" style="color:var(--clr-warning,#d97706);">${totalPending}</div>
         </div>
       </div>
     </div>
@@ -104,8 +106,8 @@ async function renderEncaissementsModule(container, meta) {
           <i data-lucide="receipt"></i> Documents &amp; Reçus
         </button>
         <button class="btn ${window._encActiveTab === 'demandes' ? 'btn-primary' : 'btn-secondary'}" onclick="encSwitchTab('demandes')">
-          <i data-lucide="inbox"></i> Demandes d'inscription &amp; En attente
-          ${pendingDemandes.length ? `<span style="background:#d97706; color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; margin-left:6px;">${pendingDemandes.length}</span>` : ''}
+          <i data-lucide="inbox"></i> File d'attente Caisse &amp; Demandes
+          ${totalPending ? `<span style="background:#d97706; color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; margin-left:6px;">${totalPending}</span>` : ''}
         </button>
         <button class="btn ${window._encActiveTab === 'journal' ? 'btn-primary' : 'btn-secondary'}" onclick="encSwitchTab('journal')">
           <i data-lucide="file-bar-chart"></i> Journal &amp; Ventilation par Date
@@ -243,16 +245,85 @@ function renderEncTable() {
 }
 
 // --------------------------------------------------------------
-// TAB 2 : DEMANDES D'INSCRIPTION & PAIEMENTS EN ATTENTE
+// TAB 2 : FILE D'ATTENTE CAISSE & DEMANDES D'INSCRIPTION
 // --------------------------------------------------------------
 function renderEncDemandesTab(content) {
+  const pendingEnc = (window._encAll || []).filter(e => e.statut === 'en_attente');
   const demandes = window._encDemandes || [];
+  const pendingDem = demandes.filter(d => d.statut === 'en_attente');
 
   content.innerHTML = `
+    <!-- SECTION 1 : FILE DE CAISSE (CONSULTATIONS & ACHATS EN ATTENTE) -->
+    <div class="card" style="margin-bottom: var(--space-6); border-left: 4px solid var(--clr-primary, #4f46e5);">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h3 class="card-title" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <i data-lucide="clock" style="color:var(--clr-primary, #4f46e5);"></i>
+            File d'attente Caisse — Consultations &amp; Achats (${pendingEnc.length})
+          </h3>
+          <p style="margin:2px 0 0; font-size:12px; color:var(--clr-text-muted,#94a3b8);">
+            Patients transmis par la réception pour encaissement d'une consultation ou d'un achat.
+          </p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="encRefreshDemandes()">
+          <i data-lucide="rotate-cw"></i> Actualiser
+        </button>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr>
+            <th>Date / Heure</th>
+            <th>Nº / Dossier</th>
+            <th>Patient</th>
+            <th>Service / Achat</th>
+            <th>Montant prévu</th>
+            <th>Statut</th>
+            <th style="text-align:right;">Action</th>
+          </tr></thead>
+          <tbody>
+            ${pendingEnc.length ? pendingEnc.map(e => {
+              const p = e.erp_patients || {};
+              const nom = e.erp_patients ? erpPatientName(e.erp_patients) : (e.patient_nom || 'Patient');
+              const codeDossier = p.code ? `${p.code} ${p.numero_dossier ? '· ' + p.numero_dossier : ''}` : (e.numero || '—');
+              return `
+                <tr>
+                  <td>${e.created_at ? e.created_at.slice(0, 16).replace('T', ' ') : (e.date_doc || '—')}</td>
+                  <td><strong>${erpEsc(codeDossier)}</strong></td>
+                  <td>
+                    <strong>${erpEsc(nom)}</strong>
+                    ${p.phone ? `<div style="font-size:12px; color:var(--clr-text-muted,#94a3b8);">${erpEsc(p.phone)}</div>` : ''}
+                  </td>
+                  <td><span class="badge badge-secondary" style="font-weight:600;">${erpEsc(e.motif || 'Consultation')}</span></td>
+                  <td><strong style="color:var(--clr-primary,#4f46e5); font-size:14px;">${erpFmtMoney(e.montant, e.devise)}</strong></td>
+                  <td><span class="badge badge-warning">En attente paiement</span></td>
+                  <td style="text-align:right; white-space:nowrap;">
+                    <button class="btn btn-primary btn-sm" onclick="validerEncaissement('${e.id}')" style="background:#16a34a; border-color:#16a34a; color:#fff; font-weight:600;">
+                      <i data-lucide="check-circle"></i> Valider &amp; Encaisser
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="annulerEncaissement('${e.id}')" title="Annuler" style="color:#ef4444; margin-left:4px;">
+                      <i data-lucide="trash-2"></i>
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('') : `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucun patient en attente d'encaissement à la caisse.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SECTION 2 : DEMANDES D'INSCRIPTION EN LIGNE -->
     <div class="card">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 class="card-title">Demandes d'inscription &amp; Patients à encaisser (${demandes.length})</h3>
-        <button class="btn btn-secondary" onclick="encRefreshDemandes()"><i data-lucide="rotate-cw"></i> Actualiser</button>
+        <div>
+          <h3 class="card-title" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <i data-lucide="globe"></i>
+            Demandes d'inscription en ligne (${demandes.length})
+          </h3>
+          <p style="margin:2px 0 0; font-size:12px; color:var(--clr-text-muted,#94a3b8);">
+            Formulaires soumis depuis le site web en attente de paiement initial.
+          </p>
+        </div>
       </div>
       <div class="table-container">
         <table class="table">
@@ -260,9 +331,9 @@ function renderEncDemandesTab(content) {
             <th>Date reçue</th>
             <th>Patient</th>
             <th>Téléphone</th>
-            <th>Service / Motif</th>
+            <th>Service demandé</th>
             <th>Statut</th>
-            <th>Action</th>
+            <th style="text-align:right;">Action</th>
           </tr></thead>
           <tbody>
             ${demandes.length ? demandes.map(d => {
@@ -280,7 +351,7 @@ function renderEncDemandesTab(content) {
                       ${isEnAttente ? 'En attente de paiement' : (d.statut === 'traite' ? 'Payé / Traité' : 'Rejeté')}
                     </span>
                   </td>
-                  <td>
+                  <td style="text-align:right;">
                     ${isEnAttente ? `
                       <button class="btn btn-primary btn-sm" onclick="encaisseDemande('${d.id}')">
                         <i data-lucide="banknote"></i> Encaisser
@@ -293,7 +364,7 @@ function renderEncDemandesTab(content) {
                   </td>
                 </tr>
               `;
-            }).join('') : `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucune demande en attente.</td></tr>`}
+            }).join('') : `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucune demande en ligne.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -304,9 +375,124 @@ function renderEncDemandesTab(content) {
 }
 
 async function encRefreshDemandes() {
-  const { data } = await erpSelect('erp_patient_demandes', '*').order('created_at', { ascending: false }).limit(200);
-  window._encDemandes = data || [];
+  const [encRes, demRes] = await Promise.all([
+    erpSelect('erp_encaissements', '*, erp_patients(code, nom, prenom, phone)').order('created_at', { ascending: false }).limit(400),
+    erpSelect('erp_patient_demandes', '*').order('created_at', { ascending: false }).limit(200)
+  ]);
+  window._encAll = encRes.data || [];
+  window._encDemandes = demRes.data || [];
   renderEncCurrentTab();
+}
+
+function validerEncaissement(encId) {
+  const enc = (window._encAll || []).find(e => e.id === encId);
+  if (!enc) return;
+  const p = enc.erp_patients || {};
+  const nom = enc.erp_patients ? erpPatientName(enc.erp_patients) : (enc.patient_nom || 'Patient');
+  const code = p.code ? ` (${p.code})` : '';
+
+  erpShowModal(`
+    <div class="modal-header">
+      <h3 class="modal-title">Valider l'encaissement — ${erpEsc(nom)}${erpEsc(code)}</h3>
+      <button class="modal-close" onclick="erpCloseModal()"><i data-lucide="x"></i></button>
+    </div>
+    <form id="valider-enc-form" class="modal-body">
+      <div style="background:var(--clr-bg-soft,#f8fafc); border-radius:8px; padding:12px; margin-bottom:14px; border:1px solid var(--clr-border,#e2e8f0);">
+        <div style="font-size:12px; color:var(--clr-text-muted,#94a3b8); margin-bottom:4px;">Motif de l'opération</div>
+        <div style="font-size:15px; font-weight:600; color:var(--clr-primary,#4f46e5);">${erpEsc(enc.motif || 'Consultation / Achat')}</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Montant à encaisser *</label>
+          <input type="number" name="montant" id="ve-montant" class="form-input" min="0" step="any" required value="${enc.montant || 0}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Devise</label>
+          <select name="devise" class="form-select form-input">
+            <option value="HTG" ${enc.devise === 'HTG' ? 'selected' : ''}>HTG</option>
+            <option value="USD" ${enc.devise === 'USD' ? 'selected' : ''}>USD</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Mode de paiement *</label>
+          <select name="mode_paiement" class="form-select form-input" required>
+            ${Object.entries(MODE_PAIEMENTS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Référence / Nº reçu tiers</label>
+          <input type="text" name="reference" class="form-input" placeholder="Optionnel (ex: ref MonCash)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Motif ajusté (optionnel)</label>
+        <input type="text" name="motif" class="form-input" value="${erpEsc(enc.motif || '')}">
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="erpCloseModal()">Annuler</button>
+      <button class="btn btn-primary" id="ve-submit-btn" style="background:#16a34a; border-color:#16a34a;">
+        <i data-lucide="check-circle"></i> Confirmer &amp; Imprimer le reçu
+      </button>
+    </div>
+  `);
+
+  document.getElementById('ve-submit-btn')?.addEventListener('click', async () => {
+    const form = document.getElementById('valider-enc-form');
+    if (!form.checkValidity()) return form.reportValidity();
+    const fd = new FormData(form);
+
+    const updatePayload = {
+      montant: parseFloat(fd.get('montant') || 0),
+      devise: fd.get('devise') || 'HTG',
+      mode_paiement: fd.get('mode_paiement') || 'cash',
+      reference: fd.get('reference') || null,
+      motif: fd.get('motif') || enc.motif,
+      statut: 'paye',
+      date_doc: new Date().toISOString().slice(0, 10)
+    };
+
+    const { data, error } = await db.from('erp_encaissements')
+      .update(updatePayload)
+      .eq('id', encId)
+      .select('*, erp_patients(code, nom, prenom)')
+      .single();
+
+    if (error) return erpToast('Erreur: ' + error.message, true);
+
+    // Mettre à jour workflow_step du patient si attente consultation
+    if (enc.patient_id) {
+      try {
+        await db.from('erp_patients')
+          .update({ workflow_step: 'attente_evaluation' })
+          .eq('id', enc.patient_id)
+          .eq('workflow_step', 'a_encaisser');
+      } catch (pe) {}
+    }
+
+    erpCloseModal();
+    erpToast(`Paiement validé avec succès (Reçu Nº ${data.numero || ''})`);
+
+    // Actualiser tableau
+    await encRefreshDemandes();
+
+    printEncaissement(data.id, data);
+  });
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function annulerEncaissement(encId) {
+  if (!confirm("Voulez-vous annuler cette demande d'encaissement ?")) return;
+  const { error } = await db.from('erp_encaissements').update({ statut: 'annule' }).eq('id', encId);
+  if (error) return erpToast('Erreur: ' + error.message, true);
+  erpToast('Demande annulée.');
+  await encRefreshDemandes();
 }
 
 function encaisseDemande(demandeId) {

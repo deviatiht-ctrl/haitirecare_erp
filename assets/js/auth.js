@@ -101,10 +101,10 @@ const ERP_MODULE_PERMISSIONS = {
   // Modules cliniques
   patients:     ['patients', 'clients'],
   rdv:          ['rdv', 'agenda'],
-  seances:      ['seances', 'patients'],
-  ordonnances:  ['ordonnances', 'patients'],
-  protheses:    ['protheses', 'patients'],
-  ortheses:     ['ortheses', 'patients'],
+  seances:      ['seances'],
+  ordonnances:  ['ordonnances'],
+  protheses:    ['protheses'],
+  ortheses:     ['ortheses'],
   services:     ['services'],
   facturation_medical: ['facturation_medical', 'facturation', 'finances'],
   pharmacie:    ['pharmacie'],
@@ -112,10 +112,10 @@ const ERP_MODULE_PERMISSIONS = {
   siteweb:      ['siteweb', 'parametres'],
   annonces:     ['annonces', 'siteweb', 'parametres'],
   // Workflow clinique & opérations
-  consultations: ['consultations', 'patients', 'medecin'],
-  atelier:       ['atelier', 'protheses', 'ortheses', 'ouvrier'],
+  consultations: ['consultations', 'medecin'],
+  atelier:       ['atelier', 'ouvrier'],
   encaissements: ['encaissements', 'caisse', 'finances', 'facturation'],
-  service_client:['service_client', 'clients', 'patients'],
+  service_client:['service_client'],
   achats:        ['achats', 'fournisseurs', 'stock'],
   rapports_mensuels: ['rapports_mensuels', 'rapports'],
   audit:         ['audit', 'users', 'parametres']
@@ -129,7 +129,7 @@ const ERP_ROLE_DEFAULT_PERMISSIONS = {
   directeur:         { all: true },
   manager:           { clients: true, stock: true, catalogue: true, finances: true, caisse: true, taches: true, rapports: true, rh: true, employes: true, messages: true, parametres: true, users: true },
   secretaire:        { clients: true, patients: true, rdv: true, service_client: true, taches: true, rapports: true, rapports_mensuels: true, messages: true, agenda: true },
-  comptable:         { caisse: true, encaissements: true, finances: true, factures: true, facturation: true, patients: true, rapports: true, rapports_mensuels: true },
+  comptable:         { caisse: true, encaissements: true, finances: true, factures: true, facturation: true, rapports: true, rapports_mensuels: true },
   responsable_stock: { stock: true, fournisseurs: true, achats: true, rapports: true, rapports_mensuels: true, messages: true },
   commercial:        { clients: true, stock_read: true, catalogue: true, ventes: true, taches: true, rapports: true, messages: true },
   rh:                { rh: true, employes: true, presences: true, conges: true, taches: true, rapports: true, messages: true },
@@ -310,10 +310,15 @@ function getVisibleNavModules() {
 
   const seen = new Set(['dashboard']);
   const clinical = isClinicalEnterprise();
+  const isComptable = window.currentUser?.role === 'comptable';
+  const clinicalBlacklistForComptable = ['protheses', 'ortheses', 'consultations', 'seances', 'ordonnances', 'atelier', 'services', 'patients', 'rdv', 'pharmacie', 'materiel_orthopedique', 'service_client'];
+
   const items = [];
   candidates.forEach(code => {
     // Klinik: modil "clients" kache — modil "patients" ranplase l
     if (clinical && code === 'clients') return;
+    // Kontab: pa gen modil klinik ditou nan meni an
+    if (isComptable && clinicalBlacklistForComptable.includes(code)) return;
     if (seen.has(code) || !hasModuleAccess(code)) return;
     seen.add(code);
     items.push(getModuleNavItem(code));
