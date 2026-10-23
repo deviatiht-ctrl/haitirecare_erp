@@ -211,9 +211,28 @@ function jsonInputs(group, keys) {
 // --------------------------------------------------------------
 // Preview pwochen kòd pasyan pou yon annex (san enkremante kontè a)
 function annexeNextCodePreview(annexe) {
-  if (!annexe) return '—';
-  const prefix = annexe.code || 'PAP';
-  return `${prefix}-${String((annexe.patient_seq || 0) + 1).padStart(4, '0')}`;
+  if (!annexe) {
+    const user = window.currentUser;
+    annexe = (_annexes || []).find(a => a.id === user?.annexe_id)
+          || (_annexes || []).find(a => a.is_principale)
+          || (_annexes || [])[0]
+          || (window.erpAnnexes || []).find(a => a.id === user?.annexe_id)
+          || (window.erpAnnexes || []).find(a => a.is_principale)
+          || (window.erpAnnexes || [])[0]
+          || null;
+  }
+  const prefix = (annexe && annexe.code) ? annexe.code : 'PAP';
+  let maxSeq = (annexe && typeof annexe.patient_seq === 'number') ? annexe.patient_seq : 0;
+
+  // Kalkile pi gwo sekans ki egziste nan _patients pou prefiks sa a
+  (_patients || []).forEach(p => {
+    if (p.code && p.code.toUpperCase().startsWith(`${prefix}-`)) {
+      const n = parseInt(p.code.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(n) && n > maxSeq) maxSeq = n;
+    }
+  });
+
+  return `${prefix}-${String(maxSeq + 1).padStart(4, '0')}`;
 }
 
 // Prochain numéro de dossier HRC (série générale continuing from 1161)
@@ -232,9 +251,14 @@ function getNextDossierPreview() {
 }
 
 function renderPatientFormHTML(user, canChooseAnnexe) {
-  const annexesActives = _annexes.filter(a => a.is_active);
-  const userAnnexe = _annexes.find(a => a.id === user?.annexe_id)
-    || _annexes.find(a => a.is_principale) || annexesActives[0] || null;
+  const annexesActives = (_annexes || []).filter(a => a.is_active);
+  const userAnnexe = (_annexes || []).find(a => a.id === user?.annexe_id)
+    || (_annexes || []).find(a => a.is_principale)
+    || annexesActives[0]
+    || (window.erpAnnexes || []).find(a => a.id === user?.annexe_id)
+    || (window.erpAnnexes || []).find(a => a.is_principale)
+    || (window.erpAnnexes || [])[0]
+    || null;
 
   // Anplwaye: annex li a parèt otomatikman (readonly) + pwochen kòd la.
   // Direksyon: ka chwazi yon lòt annex; kòd la mete ajou otomatikman.
@@ -260,8 +284,8 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
       <div class="card-body" style="padding: var(--space-5); display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px;">
         <div class="form-group">
           <label class="form-label">Code patient (automatique)</label>
-          <input type="text" class="form-input" id="code-preview" readonly
-                 value="${_editingPatient?.code || annexeNextCodePreview(userAnnexe)}"
+          <input type="text" class="form-input" id="code-preview" name="code" readonly
+                 value="${escH(_editingPatient?.code || annexeNextCodePreview(userAnnexe))}"
                  style="background: var(--clr-bg-soft, #f1f5f9); font-weight:600;">
           ${_editingPatient ? '' : '<small style="color:var(--clr-text-muted,#94a3b8);">Préfixe de votre annexe (ex: PAP-0001)</small>'}
         </div>
@@ -931,7 +955,8 @@ function renderPatientStatsHTML() {
 
 function renderPatientList(container) {
   const user = window.currentUser;
-  const isDirection = STAFF_DIRECTION.includes(user?.role)
+  const canSeeStats = STAFF_DIRECTION.includes(user?.role)
+    || ['secretaire', 'receptionniste', 'manager'].includes(user?.role)
     || (typeof isErpOwner === 'function' && isErpOwner(user));
   const annexeOf = (p) => _annexes.find(a => a.id === p.annexe_id);
   const rows = patientFilteredRows();
@@ -941,7 +966,7 @@ function renderPatientList(container) {
   const hasFilters = _patientFilterAnnexe || _patientFilterStatut || _patientFilterService;
 
   container.innerHTML = `
-    ${isDirection ? renderPatientStatsHTML() : ''}
+    ${canSeeStats ? renderPatientStatsHTML() : ''}
     <div class="page-header">
       <div class="topbar-search" style="max-width:320px;">
         <i data-lucide="search"></i>
@@ -1131,8 +1156,13 @@ async function submitPatientForm(e, container) {
     }
 
     let created = null;
+    if (!data.code || data.code === '—') {
+      const codeInp = form.querySelector('#code-preview');
+      data.code = (codeInp && codeInp.value && codeInp.value !== '—') ? codeInp.value.trim() : annexeNextCodePreview();
+    }
     if (!data.numero_dossier) {
-      data.numero_dossier = getNextDossierPreview();
+      const dosInp = form.querySelector('#numero-dossier-input');
+      data.numero_dossier = (dosInp && dosInp.value) ? dosInp.value.trim() : getNextDossierPreview();
     }
 
     // Eseye RPC erp_register_patient

@@ -2,6 +2,7 @@
 -- LOGIQUE NUMERO DOSSIER (HRC-001162...) & CODE ANNEXE
 -- 1. Code patient = préfixe annexe (PAP-0001, LEO-0001...)
 -- 2. N° Dossier = série générale HRC (HRC-001162...)
+-- 3. Permissions complètes pour Receptionniste & Staff
 -- ============================================================
 
 -- 0. Nettoyer les doublons d'annexe éventuels et mettre à jour le code des patients existants
@@ -56,7 +57,29 @@ BEGIN
   END IF;
 END $$;
 
--- 1. Mettre à jour la fonction erp_register_patient
+-- 1. Mettre à jour les permissions RLS pour Receptionniste sur annexes et patients
+DROP POLICY IF EXISTS "annexes_select" ON erp_annexes;
+CREATE POLICY "annexes_select" ON erp_annexes FOR SELECT
+  USING (erp_has_role(ARRAY['pdg','directrice','directeur','manager',
+                            'secretaire','receptionniste','comptable','responsable_stock',
+                            'commercial','rh','employe']));
+
+DROP POLICY IF EXISTS "patients_all_read" ON erp_patients;
+CREATE POLICY "patients_all_read" ON erp_patients FOR SELECT USING (is_active = true);
+
+DROP POLICY IF EXISTS "patients_insert" ON erp_patients;
+CREATE POLICY "patients_insert" ON erp_patients FOR INSERT WITH CHECK (
+  erp_has_role(ARRAY['pdg','directrice','directeur','manager',
+                     'secretaire','receptionniste','medecin','physiotherapeute','employe'])
+);
+
+DROP POLICY IF EXISTS "patients_update" ON erp_patients;
+CREATE POLICY "patients_update" ON erp_patients FOR UPDATE USING (
+  erp_has_role(ARRAY['pdg','directrice','directeur','manager',
+                     'secretaire','receptionniste','medecin','physiotherapeute','employe'])
+);
+
+-- 2. Mettre à jour la fonction erp_register_patient (avec receptionniste)
 CREATE OR REPLACE FUNCTION erp_register_patient(p_data jsonb DEFAULT '{}')
 RETURNS jsonb AS $$
 DECLARE
@@ -71,7 +94,7 @@ DECLARE
   v_row erp_patients;
 BEGIN
   IF NOT erp_has_role(ARRAY['pdg','directrice','directeur','manager',
-                            'secretaire','employe']) THEN
+                            'secretaire','receptionniste','employe']) THEN
     RAISE EXCEPTION 'Permission denied: staff only';
   END IF;
 
@@ -174,9 +197,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 2. Trigger pour tout INSERT direct dans erp_patients
+-- 3. Trigger pour tout INSERT direct dans erp_patients (SECURITY DEFINER pour permettre la màj du compteur par la réceptionniste)
 CREATE OR REPLACE FUNCTION erp_patients_assign_code()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_annexe uuid;
   v_prefix text;

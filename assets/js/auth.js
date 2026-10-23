@@ -377,11 +377,25 @@ function checkPagePermission() {
   return true;
 }
 
-// Service Worker Registration for PWA / Offline Mode
+// Service Worker Registration for PWA / Offline Mode (Network-First, auto-update)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(reg => {
-      console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+      // Force update check
+      try { reg.update(); } catch(e) {}
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated') {
+              console.log('[PWA] ServiceWorker updated to latest version');
+            }
+          });
+        }
+      });
     }).catch(err => {
       console.warn('[PWA] ServiceWorker registration failed:', err);
     });

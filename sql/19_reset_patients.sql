@@ -1168,6 +1168,25 @@ BEGIN
     RETURNING id, code INTO v_annexe_id, v_prefix;
   END IF;
 
+  -- Mettre à jour les permissions RLS pour Receptionniste
+  DROP POLICY IF EXISTS "annexes_select" ON erp_annexes;
+  CREATE POLICY "annexes_select" ON erp_annexes FOR SELECT
+    USING (erp_has_role(ARRAY['pdg','directrice','directeur','manager',
+                              'secretaire','receptionniste','comptable','responsable_stock',
+                              'commercial','rh','employe']));
+
+  DROP POLICY IF EXISTS "patients_insert" ON erp_patients;
+  CREATE POLICY "patients_insert" ON erp_patients FOR INSERT WITH CHECK (
+    erp_has_role(ARRAY['pdg','directrice','directeur','manager',
+                       'secretaire','receptionniste','medecin','physiotherapeute','employe'])
+  );
+
+  DROP POLICY IF EXISTS "patients_update" ON erp_patients;
+  CREATE POLICY "patients_update" ON erp_patients FOR UPDATE USING (
+    erp_has_role(ARRAY['pdg','directrice','directeur','manager',
+                       'secretaire','receptionniste','medecin','physiotherapeute','employe'])
+  );
+
   -- Assigner l'annexe et l'entreprise à tous les patients
   IF v_annexe_id IS NOT NULL THEN
     UPDATE erp_patients
@@ -1212,7 +1231,7 @@ DECLARE
   v_row erp_patients;
 BEGIN
   IF NOT erp_has_role(ARRAY['pdg','directrice','directeur','manager',
-                            'secretaire','employe']) THEN
+                            'secretaire','receptionniste','employe']) THEN
     RAISE EXCEPTION 'Permission denied: staff only';
   END IF;
 
@@ -1312,7 +1331,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 6. Trigger fallback pour tout insert direct
 CREATE OR REPLACE FUNCTION erp_patients_assign_code()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_annexe uuid;
   v_prefix text;
