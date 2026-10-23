@@ -1,9 +1,11 @@
 // ==============================================================
 // ENCAISSEMENTS — Caisse & Comptabilité (m=encaissements)
-//   * Resi, devi, fakti, fakti proforma
+//   * Reçus, devis, factures, factures proforma
+//   * Demandes d'inscription & Paiements en attente (comptabilité)
+//   * Journal de Caisse & Ventilation des recettes par date
 //   * Mòd peman: Cash / MonCash / Chèque / Virement
-//   * Resi enprimab (fenèt dedye → print/PDF)
-//   * Rezime jou a pa mòd peman + cloture caisse
+//   * Reçu imprimable (fenêtre dédiée → print/PDF)
+//   * Clôture de caisse automatique
 // Rele pa module.html — bezwen branch.js + clinique.js (erpEsc…)
 // ==============================================================
 
@@ -14,41 +16,64 @@ const TYPE_DOCS = {
   recu: 'Reçu', devis: 'Devis', facture: 'Facture', proforma: 'Facture proforma'
 };
 
+window._encActiveTab = window._encActiveTab || 'documents'; // 'documents' | 'demandes' | 'journal'
+window._encDemandePending = null;
+
 async function renderEncaissementsModule(container, meta) {
-  container.innerHTML = '<div class="loading"><div class="loading-spinner"></div><div class="loading-text">Chargement des encaissements...</div></div>';
+  container.innerHTML = '<div class="loading"><div class="loading-spinner"></div><div class="loading-text">Chargement des opérations de caisse...</div></div>';
 
   const today = new Date().toISOString().slice(0, 10);
-  const [encRes, patients] = await Promise.all([
-    erpSelect('erp_encaissements', '*, erp_patients(code, nom, prenom)')
-      .order('created_at', { ascending: false }).limit(300),
-    erpLoadPatientsForSelect()
+  const curMonth = today.slice(0, 7);
+
+  const [encRes, patients, demandesRes, depRes, evalsRes, seancesRes] = await Promise.all([
+    erpSelect('erp_encaissements', '*, erp_patients(code, nom, prenom, phone)')
+      .order('created_at', { ascending: false }).limit(400),
+    erpLoadPatientsForSelect(),
+    erpSelect('erp_patient_demandes', '*')
+      .order('created_at', { ascending: false }).limit(200),
+    erpSelect('erp_depenses', '*')
+      .gte('date_transaction', `${curMonth}-01`).order('date_transaction', { ascending: false }).limit(300),
+    erpSelect('erp_evaluations', '*')
+      .gte('date_evaluation', `${curMonth}-01`).limit(300),
+    erpSelect('erp_seances', '*')
+      .gte('date_seance', `${curMonth}-01`).limit(300)
   ]);
 
   window._encAll = encRes.data || [];
-  window._encPatients = patients;
-  window._encFilter = { date: today, type: '', statut: '' };
+  window._encPatients = patients || [];
+  window._encDemandes = demandesRes.data || [];
+  window._encDepenses = depRes.data || [];
+  window._encEvals = evalsRes.data || [];
+  window._encSeances = seancesRes.data || [];
+  window._encFilter = window._encFilter || { date: today, type: '', statut: '' };
 
   const du_jour = window._encAll.filter(e => e.date_doc === today && e.statut === 'paye');
   const byMode = {};
   du_jour.forEach(e => { const k = e.mode_paiement || 'autre'; byMode[k] = (byMode[k] || 0) + parseFloat(e.montant || 0); });
   const totalJour = Object.values(byMode).reduce((a, b) => a + b, 0);
 
+  const pendingDemandes = (window._encDemandes || []).filter(d => d.statut === 'en_attente');
+
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h2 style="margin:0;">Encaissements</h2>
+        <h2 style="margin:0;">Comptabilité &amp; Caisse</h2>
         <p style="margin:4px 0 0; color:var(--clr-text-muted,#94a3b8); font-size:13px;">
-          Reçus, devis, factures et factures proforma — numérotation automatique par annexe.
+          Reçus, factures, demandes de paiement, clôtures de caisse et ventilation journalière.
         </p>
       </div>
-      <div class="page-actions">
+      <div class="page-actions" style="display:flex; gap:8px;">
+        <button class="btn btn-secondary" id="enc-cloture-btn" title="Clôture de caisse du jour">
+          <i data-lucide="lock"></i> Clôturer la caisse
+        </button>
         <button class="btn btn-primary" id="enc-new-btn">
-          <i data-lucide="plus"></i> Nouveau document
+          <i data-lucide="plus"></i> Nouveau document / Reçu
         </button>
       </div>
     </div>
 
-    <div class="kpi-grid" style="margin-bottom: var(--space-6);">
+    <!-- KPIs de la journée -->
+    <div class="kpi-grid" style="margin-bottom: var(--space-5);">
       <div class="kpi-card">
         <div class="kpi-icon success"><i data-lucide="banknote"></i></div>
         <div class="kpi-content">
@@ -63,32 +88,90 @@ async function renderEncaissementsModule(container, meta) {
             <div class="kpi-value">${erpFmtMoney(byMode[k] || 0)}</div>
           </div>
         </div>`).join('')}
+      <div class="kpi-card" style="cursor:pointer;" onclick="encSwitchTab('demandes')">
+        <div class="kpi-icon warning"><i data-lucide="inbox"></i></div>
+        <div class="kpi-content">
+          <div class="kpi-label">Demandes à encaisser</div>
+          <div class="kpi-value" style="color:var(--clr-warning,#d97706);">${pendingDemandes.length}</div>
+        </div>
+      </div>
     </div>
 
+    <!-- Onglets du module comptable -->
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-body" style="padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn ${window._encActiveTab === 'documents' ? 'btn-primary' : 'btn-secondary'}" onclick="encSwitchTab('documents')">
+          <i data-lucide="receipt"></i> Documents &amp; Reçus
+        </button>
+        <button class="btn ${window._encActiveTab === 'demandes' ? 'btn-primary' : 'btn-secondary'}" onclick="encSwitchTab('demandes')">
+          <i data-lucide="inbox"></i> Demandes d'inscription &amp; En attente
+          ${pendingDemandes.length ? `<span style="background:#d97706; color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; margin-left:6px;">${pendingDemandes.length}</span>` : ''}
+        </button>
+        <button class="btn ${window._encActiveTab === 'journal' ? 'btn-primary' : 'btn-secondary'}" onclick="encSwitchTab('journal')">
+          <i data-lucide="file-bar-chart"></i> Journal &amp; Ventilation par Date
+        </button>
+      </div>
+    </div>
+
+    <div id="enc-tab-content"></div>
+  `;
+
+  document.getElementById('enc-new-btn')?.addEventListener('click', () => openEncForm());
+  document.getElementById('enc-cloture-btn')?.addEventListener('click', cloturerCaisse);
+
+  renderEncCurrentTab();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function encSwitchTab(tab) {
+  window._encActiveTab = tab;
+  const container = document.getElementById('module-content');
+  if (container) renderEncaissementsModule(container);
+}
+
+function renderEncCurrentTab() {
+  const content = document.getElementById('enc-tab-content');
+  if (!content) return;
+
+  if (window._encActiveTab === 'demandes') {
+    renderEncDemandesTab(content);
+  } else if (window._encActiveTab === 'journal') {
+    renderEncJournalTab(content);
+  } else {
+    renderEncDocumentsTab(content);
+  }
+}
+
+// --------------------------------------------------------------
+// TAB 1 : DOCUMENTS & REÇUS
+// --------------------------------------------------------------
+function renderEncDocumentsTab(content) {
+  const today = new Date().toISOString().slice(0, 10);
+  content.innerHTML = `
     <div class="card" style="margin-bottom: var(--space-5);">
       <div class="card-body" style="padding:14px; display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
         <div class="form-group" style="margin:0;">
           <label class="form-label">Date</label>
-          <input type="date" id="enc-f-date" class="form-input" value="${today}">
+          <input type="date" id="enc-f-date" class="form-input" value="${window._encFilter.date || ''}">
         </div>
         <div class="form-group" style="margin:0;">
           <label class="form-label">Type de document</label>
           <select id="enc-f-type" class="form-select form-input">
             <option value="">Tous</option>
-            ${Object.entries(TYPE_DOCS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+            ${Object.entries(TYPE_DOCS).map(([v, l]) => `<option value="${v}" ${window._encFilter.type === v ? 'selected' : ''}>${l}</option>`).join('')}
           </select>
         </div>
         <div class="form-group" style="margin:0;">
           <label class="form-label">Statut</label>
           <select id="enc-f-statut" class="form-select form-input">
             <option value="">Tous</option>
-            <option value="paye">Payé</option>
-            <option value="en_attente">En attente</option>
-            <option value="annule">Annulé</option>
+            <option value="paye" ${window._encFilter.statut === 'paye' ? 'selected' : ''}>Payé</option>
+            <option value="en_attente" ${window._encFilter.statut === 'en_attente' ? 'selected' : ''}>En attente</option>
+            <option value="annule" ${window._encFilter.statut === 'annule' ? 'selected' : ''}>Annulé</option>
           </select>
         </div>
-        <button class="btn btn-secondary" id="enc-cloture-btn" title="Clôture de caisse du jour">
-          <i data-lucide="lock"></i> Clôturer la caisse
+        <button class="btn btn-ghost" onclick="encResetFilters()">
+          <i data-lucide="x"></i> Réinitialiser
         </button>
       </div>
     </div>
@@ -104,10 +187,11 @@ async function renderEncaissementsModule(container, meta) {
           <tbody id="enc-tbody"></tbody>
         </table>
       </div>
-    </div>`;
+    </div>
+  `;
 
   ['enc-f-date', 'enc-f-type', 'enc-f-statut'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => {
+    document.getElementById(id)?.addEventListener('input', () => {
       window._encFilter = {
         date: document.getElementById('enc-f-date').value,
         type: document.getElementById('enc-f-type').value,
@@ -117,10 +201,13 @@ async function renderEncaissementsModule(container, meta) {
     });
   });
 
-  document.getElementById('enc-new-btn').addEventListener('click', openEncForm);
-  document.getElementById('enc-cloture-btn').addEventListener('click', cloturerCaisse);
   renderEncTable();
   if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function encResetFilters() {
+  window._encFilter = { date: '', type: '', statut: '' };
+  renderEncDocumentsTab(document.getElementById('enc-tab-content'));
 }
 
 function renderEncTable() {
@@ -134,7 +221,8 @@ function renderEncTable() {
     return true;
   });
 
-  document.getElementById('enc-count').textContent = `${rows.length} document(s)`;
+  const countEl = document.getElementById('enc-count');
+  if (countEl) countEl.textContent = `${rows.length} document(s)`;
 
   const statutBadge = { paye: 'badge-success', en_attente: 'badge-warning', annule: 'badge-danger' };
   const statutLabel = { paye: 'Payé', en_attente: 'En attente', annule: 'Annulé' };
@@ -154,11 +242,301 @@ function renderEncTable() {
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-function openEncForm() {
+// --------------------------------------------------------------
+// TAB 2 : DEMANDES D'INSCRIPTION & PAIEMENTS EN ATTENTE
+// --------------------------------------------------------------
+function renderEncDemandesTab(content) {
+  const demandes = window._encDemandes || [];
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 class="card-title">Demandes d'inscription &amp; Patients à encaisser (${demandes.length})</h3>
+        <button class="btn btn-secondary" onclick="encRefreshDemandes()"><i data-lucide="rotate-cw"></i> Actualiser</button>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr>
+            <th>Date reçue</th>
+            <th>Patient</th>
+            <th>Téléphone</th>
+            <th>Service / Motif</th>
+            <th>Statut</th>
+            <th>Action</th>
+          </tr></thead>
+          <tbody>
+            ${demandes.length ? demandes.map(d => {
+              const payload = d.payload || {};
+              const services = Array.isArray(payload.type_service) ? payload.type_service.join(', ') : (payload.type_service || 'Inscription / Évaluation');
+              const isEnAttente = d.statut === 'en_attente';
+              return `
+                <tr>
+                  <td>${d.created_at ? d.created_at.slice(0, 16).replace('T', ' ') : '—'}</td>
+                  <td><strong>${erpEsc(d.nom || '')}</strong> ${erpEsc(d.prenom || '')}</td>
+                  <td>${erpEsc(d.phone || '—')}</td>
+                  <td><span class="badge badge-secondary">${erpEsc(services)}</span></td>
+                  <td>
+                    <span class="badge ${isEnAttente ? 'badge-warning' : (d.statut === 'traite' ? 'badge-success' : 'badge-danger')}">
+                      ${isEnAttente ? 'En attente de paiement' : (d.statut === 'traite' ? 'Payé / Traité' : 'Rejeté')}
+                    </span>
+                  </td>
+                  <td>
+                    ${isEnAttente ? `
+                      <button class="btn btn-primary btn-sm" onclick="encaisseDemande('${d.id}')">
+                        <i data-lucide="banknote"></i> Encaisser
+                      </button>
+                    ` : `
+                      <button class="btn btn-secondary btn-sm" onclick="encaisseDemande('${d.id}')" title="Émettre un nouveau reçu pour ce patient">
+                        <i data-lucide="receipt"></i> Nouveau reçu
+                      </button>
+                    `}
+                  </td>
+                </tr>
+              `;
+            }).join('') : `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucune demande en attente.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function encRefreshDemandes() {
+  const { data } = await erpSelect('erp_patient_demandes', '*').order('created_at', { ascending: false }).limit(200);
+  window._encDemandes = data || [];
+  renderEncCurrentTab();
+}
+
+function encaisseDemande(demandeId) {
+  const d = (window._encDemandes || []).find(x => x.id === demandeId);
+  if (!d) return;
+
+  const payload = d.payload || {};
+  const service = Array.isArray(payload.type_service) ? payload.type_service[0] : (payload.type_service || 'Évaluation');
+  const nomComplet = `${d.nom || ''} ${d.prenom || ''}`.trim();
+
+  // Chercher si le patient existe déjà dans _encPatients
+  let matchedPatient = (window._encPatients || []).find(p =>
+    (p.phone && d.phone && p.phone.includes(d.phone)) ||
+    (`${p.nom || ''} ${p.prenom || ''}`.toLowerCase() === nomComplet.toLowerCase())
+  );
+
+  openEncForm({
+    patient_id: matchedPatient ? matchedPatient.id : null,
+    patient_nom: nomComplet,
+    motif: `Évaluation — ${service}`,
+    montant: 500, // montant suggéré par défaut pour évaluation
+    demande_id: d.id
+  });
+}
+
+// --------------------------------------------------------------
+// TAB 3 : JOURNAL DE CAISSE & VENTILATION DES RECETTES
+// Colonnes demandées par l'utilisateur:
+// Table 1: Date | Nombre Évaluation | Nombre Thérapie | R Total | Prélèvement | Encaissement
+// Table 2: Date | Évaluation | Réévaluation | R App | R Thérapie | R Total | Prélèvement | Encaissement
+// --------------------------------------------------------------
+function renderEncJournalTab(content) {
+  const payes = (window._encAll || []).filter(e => e.statut === 'paye');
+  const depenses = window._encDepenses || [];
+  const evals = window._encEvals || [];
+  const seances = window._encSeances || [];
+
+  // Indexation par date
+  const dateMap = {};
+  const ensureDate = (dt) => {
+    if (!dt) return null;
+    const dStr = dt.slice(0, 10);
+    if (!dateMap[dStr]) {
+      dateMap[dStr] = {
+        date: dStr,
+        nb_eval: 0,
+        nb_therapie: 0,
+        r_eval: 0,
+        r_reeval: 0,
+        r_app: 0,
+        r_therapie: 0,
+        r_autre: 0,
+        prelevement: 0
+      };
+    }
+    return dateMap[dStr];
+  };
+
+  evals.forEach(ev => {
+    const row = ensureDate(ev.date_evaluation);
+    if (row) row.nb_eval += 1;
+  });
+
+  seances.forEach(sc => {
+    const row = ensureDate(sc.date_seance);
+    if (row) row.nb_therapie += 1;
+  });
+
+  payes.forEach(e => {
+    const row = ensureDate(e.date_doc);
+    if (!row) return;
+    const m = (e.motif || '').toLowerCase();
+    const val = parseFloat(e.montant || 0);
+
+    if (m.includes('rééval') || m.includes('reeval')) {
+      row.r_reeval += val;
+    } else if (m.includes('éval') || m.includes('eval') || m.includes('consultation')) {
+      row.r_eval += val;
+      if (row.nb_eval === 0) row.nb_eval += 1;
+    } else if (m.includes('app') || m.includes('proth') || m.includes('orth') || m.includes('atelier')) {
+      row.r_app += val;
+    } else if (m.includes('thérap') || m.includes('therap') || m.includes('physio') || m.includes('séance') || m.includes('seance')) {
+      row.r_therapie += val;
+      if (row.nb_therapie === 0) row.nb_therapie += 1;
+    } else {
+      row.r_autre += val;
+    }
+  });
+
+  depenses.forEach(dp => {
+    const row = ensureDate(dp.date_transaction);
+    if (row) row.prelevement += parseFloat(dp.montant || 0);
+  });
+
+  const sortedDates = Object.keys(dateMap).sort().reverse();
+
+  let tot_nb_eval = 0, tot_nb_therapie = 0, tot_r1 = 0, tot_prelev1 = 0, tot_enc1 = 0;
+  let tot_eval = 0, tot_reeval = 0, tot_rapp = 0, tot_rtherapie = 0;
+
+  sortedDates.forEach(dt => {
+    const row = dateMap[dt];
+    const r_total = row.r_eval + row.r_reeval + row.r_app + row.r_therapie + row.r_autre;
+    const encaissement = r_total - row.prelevement;
+
+    tot_nb_eval += row.nb_eval;
+    tot_nb_therapie += row.nb_therapie;
+    tot_r1 += r_total;
+    tot_prelev1 += row.prelevement;
+    tot_enc1 += encaissement;
+
+    tot_eval += row.r_eval;
+    tot_reeval += row.r_reeval;
+    tot_rapp += row.r_app;
+    tot_rtherapie += row.r_therapie;
+  });
+
+  content.innerHTML = `
+    <!-- TABLEAU 1: Activités & Caisse -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 class="card-title">1. Synthèse Activités &amp; Caisse par Date</h3>
+        <button class="btn btn-secondary btn-sm" onclick="window.print()"><i data-lucide="printer"></i> Imprimer</button>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr>
+            <th>Date</th>
+            <th>Nombre Évaluation</th>
+            <th>Nombre Thérapie</th>
+            <th>R Total</th>
+            <th>Prélèvement</th>
+            <th>Encaissement</th>
+          </tr></thead>
+          <tbody>
+            ${sortedDates.length ? sortedDates.map(dt => {
+              const row = dateMap[dt];
+              const r_tot = row.r_eval + row.r_reeval + row.r_app + row.r_therapie + row.r_autre;
+              const enc = r_tot - row.prelevement;
+              return `
+                <tr>
+                  <td><strong>${erpFmtDate(row.date)}</strong></td>
+                  <td>${row.nb_eval}</td>
+                  <td>${row.nb_therapie}</td>
+                  <td><strong>${erpFmtMoney(r_tot)}</strong></td>
+                  <td style="color:#dc2626;">${erpFmtMoney(row.prelevement)}</td>
+                  <td style="color:#16a34a; font-weight:700;">${erpFmtMoney(enc)}</td>
+                </tr>
+              `;
+            }).join('') : `<tr><td colspan="6" style="text-align:center; padding:24px;">Aucun mouvement enregistré.</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr style="font-weight:700; background:var(--clr-bg-soft,#f1f5f9);">
+              <td>TOTAL</td>
+              <td>${tot_nb_eval}</td>
+              <td>${tot_nb_therapie}</td>
+              <td>${erpFmtMoney(tot_r1)}</td>
+              <td style="color:#dc2626;">${erpFmtMoney(tot_prelev1)}</td>
+              <td style="color:#16a34a;">${erpFmtMoney(tot_enc1)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- TABLEAU 2: Ventilation détaillée des recettes -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">2. Ventilation des Recettes (Évaluation, Réévaluation, Appareillage, Thérapie)</h3>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr>
+            <th>Date</th>
+            <th>Évaluation</th>
+            <th>Réévaluation</th>
+            <th>R App</th>
+            <th>R Thérapie</th>
+            <th>R Total</th>
+            <th>Prélèvement</th>
+            <th>Encaissement</th>
+          </tr></thead>
+          <tbody>
+            ${sortedDates.length ? sortedDates.map(dt => {
+              const row = dateMap[dt];
+              const r_tot = row.r_eval + row.r_reeval + row.r_app + row.r_therapie + row.r_autre;
+              const enc = r_tot - row.prelevement;
+              return `
+                <tr>
+                  <td><strong>${erpFmtDate(row.date)}</strong></td>
+                  <td>${erpFmtMoney(row.r_eval)}</td>
+                  <td>${erpFmtMoney(row.r_reeval)}</td>
+                  <td>${erpFmtMoney(row.r_app)}</td>
+                  <td>${erpFmtMoney(row.r_therapie)}</td>
+                  <td><strong>${erpFmtMoney(r_tot)}</strong></td>
+                  <td style="color:#dc2626;">${erpFmtMoney(row.prelevement)}</td>
+                  <td style="color:#16a34a; font-weight:700;">${erpFmtMoney(enc)}</td>
+                </tr>
+              `;
+            }).join('') : `<tr><td colspan="8" style="text-align:center; padding:24px;">Aucun mouvement enregistré.</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr style="font-weight:700; background:var(--clr-bg-soft,#f1f5f9);">
+              <td>TOTAL</td>
+              <td>${erpFmtMoney(tot_eval)}</td>
+              <td>${erpFmtMoney(tot_reeval)}</td>
+              <td>${erpFmtMoney(tot_rapp)}</td>
+              <td>${erpFmtMoney(tot_rtherapie)}</td>
+              <td>${erpFmtMoney(tot_r1)}</td>
+              <td style="color:#dc2626;">${erpFmtMoney(tot_prelev1)}</td>
+              <td style="color:#16a34a;">${erpFmtMoney(tot_enc1)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  `;
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// --------------------------------------------------------------
+// MODAL : NOUVEAU DOCUMENT / REÇU
+// --------------------------------------------------------------
+function openEncForm(prefill = {}) {
   const patients = window._encPatients || [];
+  window._encDemandePending = prefill.demande_id || null;
+
   erpShowModal(`
     <div class="modal-header">
-      <h3 class="modal-title">Nouveau document</h3>
+      <h3 class="modal-title">${prefill.demande_id ? "Encaisser une demande d'inscription" : 'Nouveau document / Reçu'}</h3>
       <button class="modal-close" onclick="erpCloseModal()"><i data-lucide="x"></i></button>
     </div>
     <form id="enc-form" class="modal-body">
@@ -170,96 +548,151 @@ function openEncForm() {
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Patient</label>
-          <select name="patient_id" class="form-select form-input">
-            <option value="">— Anonyme / autre —</option>
-            ${patients.map(p => `<option value="${p.id}">${erpEsc(erpPatientName(p))}</option>`).join('')}
+          <label class="form-label">Patient *</label>
+          <select name="patient_id" class="form-select form-input" id="enc-form-patient-select">
+            <option value="">— Sélectionner ou inscrire —</option>
+            ${patients.map(p => `<option value="${p.id}" ${prefill.patient_id === p.id ? 'selected' : ''}>${erpEsc(erpPatientName(p))}</option>`).join('')}
           </select>
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Motif *</label>
-        <input type="text" name="motif" class="form-input" required
-               placeholder="Consultation, séance physio, appareillage, matériel…">
+
+      <div class="form-group" id="enc-patient-nom-group" style="${prefill.patient_id ? 'display:none;' : ''}">
+        <label class="form-label">Nom du patient (si non encore enregistré dans la liste)</label>
+        <input type="text" name="patient_nom" class="form-input" value="${erpEsc(prefill.patient_nom || '')}" placeholder="Nom et prénom du patient">
       </div>
+
+      <div class="form-group">
+        <label class="form-label">Motif de paiement *</label>
+        <input type="text" name="motif" id="enc-motif-input" class="form-input" required
+               value="${erpEsc(prefill.motif || '')}"
+               placeholder="Évaluation, séance physio, appareillage, matériel…">
+        <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('enc-motif-input').value='Évaluation';">Évaluation</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('enc-motif-input').value='Réévaluation';">Réévaluation</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('enc-motif-input').value='Séance Physiothérapie';">Thérapie</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('enc-motif-input').value='Appareillage (Orthèse/Prothèse)';">Appareillage</button>
+        </div>
+      </div>
+
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="form-group">
           <label class="form-label">Montant *</label>
-          <input type="number" name="montant" class="form-input" min="0" step="0.01" required>
+          <input type="number" name="montant" class="form-input" min="0" step="0.01" required value="${prefill.montant || ''}">
         </div>
         <div class="form-group">
           <label class="form-label">Devise</label>
           <select name="devise" class="form-select form-input">
-            <option value="HTG">HTG</option>
+            <option value="HTG" selected>HTG</option>
             <option value="USD">USD</option>
           </select>
         </div>
       </div>
+
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="form-group">
-          <label class="form-label">Mode de paiement</label>
-          <select name="mode_paiement" class="form-select form-input">
-            <option value="">— (devis/proforma) —</option>
+          <label class="form-label">Mode de paiement *</label>
+          <select name="mode_paiement" class="form-select form-input" required>
             ${Object.entries(MODE_PAIEMENTS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Référence (nº chèque, ref MonCash…)</label>
-          <input type="text" name="reference" class="form-input">
+          <input type="text" name="reference" class="form-input" placeholder="Optionnel">
         </div>
       </div>
+
       <div class="form-group">
         <label class="form-label">Statut</label>
         <select name="statut" class="form-select form-input">
-          <option value="paye">Payé</option>
+          <option value="paye" selected>Payé</option>
           <option value="en_attente">En attente</option>
         </select>
       </div>
     </form>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="erpCloseModal()">Annuler</button>
-      <button class="btn btn-primary" id="enc-save">Enregistrer</button>
+      <button class="btn btn-primary" id="enc-save">Enregistrer &amp; Imprimer le reçu</button>
     </div>`);
 
-  document.getElementById('enc-save').addEventListener('click', async () => {
-    const fd = new FormData(document.getElementById('enc-form'));
-    const patient = patients.find(p => p.id === fd.get('patient_id'));
-    if (!fd.get('motif') || !fd.get('montant')) return erpToast('Motif et montant requis', true);
+  document.getElementById('enc-form-patient-select')?.addEventListener('change', (e) => {
+    const grp = document.getElementById('enc-patient-nom-group');
+    if (grp) grp.style.display = e.target.value ? 'none' : 'block';
+  });
 
-    const { data, error } = await db.from('erp_encaissements').insert(withBranch({
-      patient_id: patient?.id || null,
-      patient_nom: patient ? erpPatientName(patient) : null,
-      type_document: fd.get('type_document'),
-      montant: parseFloat(fd.get('montant')),
+  document.getElementById('enc-save').addEventListener('click', async () => {
+    const form = document.getElementById('enc-form');
+    if (!form.checkValidity()) return form.reportValidity();
+
+    const fd = new FormData(form);
+    const patientId = fd.get('patient_id') || null;
+    const patientObj = patients.find(p => p.id === patientId);
+    const patientNom = patientObj ? erpPatientName(patientObj) : (fd.get('patient_nom') || 'Patient');
+
+    const montant = parseFloat(fd.get('montant') || 0);
+    const motif = fd.get('motif');
+    const statut = fd.get('statut') || 'paye';
+
+    const insertPayload = withBranch({
+      patient_id: patientId,
+      patient_nom: patientNom,
+      type_document: fd.get('type_document') || 'recu',
+      montant: montant,
       devise: fd.get('devise') || 'HTG',
-      mode_paiement: fd.get('mode_paiement') || null,
+      mode_paiement: fd.get('mode_paiement') || 'cash',
       reference: fd.get('reference') || null,
-      motif: fd.get('motif'),
-      statut: fd.get('statut') || 'paye',
+      motif: motif,
+      statut: statut,
+      date_doc: new Date().toISOString().slice(0, 10),
       created_by: window.currentUser?.id
-    })).select('*, erp_patients(code, nom, prenom)').single();
+    });
+
+    const { data, error } = await db.from('erp_encaissements')
+      .insert(insertPayload)
+      .select('*, erp_patients(code, nom, prenom)')
+      .single();
 
     if (error) return erpToast('Erreur: ' + error.message, true);
 
-    // Fèmen sik pasyan an si li te "à encaisser" epi li peye
-    if (patient?.id && data.statut === 'paye') {
-      await db.from('erp_patients')
-        .update({ workflow_step: 'cloture' })
-        .eq('id', patient.id)
-        .eq('workflow_step', 'a_encaisser');
+    // Si lié à une demande d'inscription, marquer la demande comme traitée
+    if (window._encDemandePending) {
+      try {
+        await db.from('erp_patient_demandes').update({
+          statut: 'traite',
+          traite_par: window.currentUser?.id,
+          traite_at: new Date().toISOString()
+        }).eq('id', window._encDemandePending);
+
+        const targetD = (window._encDemandes || []).find(x => x.id === window._encDemandePending);
+        if (targetD) targetD.statut = 'traite';
+      } catch (de) {
+        console.warn('Demande status update error:', de);
+      }
+      window._encDemandePending = null;
+    }
+
+    if (patientId && statut === 'paye') {
+      try {
+        await db.from('erp_patients')
+          .update({ workflow_step: 'cloture' })
+          .eq('id', patientId)
+          .eq('workflow_step', 'a_encaisser');
+      } catch (pe) {}
     }
 
     window._encAll.unshift(data);
     erpCloseModal();
-    erpToast(`Document ${data.numero || ''} enregistré`);
+    erpToast(`Document ${data.numero || ''} enregistré avec succès`);
     if (typeof logActivity === 'function')
       logActivity('Encaissement', 'Caisse', `${data.numero} — ${erpFmtMoney(data.montant, data.devise)}`);
-    renderEncTable();
+
+    renderEncCurrentTab();
     printEncaissement(data.id);
   });
 }
 
-// Enpresyon resi/devi — fenèt dedye (PDF via "Save as PDF")
+// --------------------------------------------------------------
+// IMPRESSION / REÇU PDF
+// --------------------------------------------------------------
 function printEncaissement(id) {
   const e = (window._encAll || []).find(x => x.id === id);
   if (!e) return;
@@ -270,7 +703,7 @@ function printEncaissement(id) {
   if (!w) return erpToast('Popup bloqué — autorisez les popups', true);
 
   w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-    <title>${TYPE_DOCS[e.type_document]} ${erpEsc(e.numero || '')}</title>
+    <title>${TYPE_DOCS[e.type_document] || 'Reçu'} ${erpEsc(e.numero || '')}</title>
     <style>
       body { font-family: system-ui, Arial, sans-serif; color: #111; padding: 32px; max-width: 560px; margin: auto; }
       .head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 20px; }
@@ -286,7 +719,7 @@ function printEncaissement(id) {
     <div class="head">
       <h1>${erpEsc(company)}</h1>
       <p>${erpEsc(annexe)} · ${erpEsc(settings.company_phone || '')}</p>
-      <p>${TYPE_DOCS[e.type_document]} Nº <strong>${erpEsc(e.numero || '—')}</strong> — ${erpFmtDate(e.date_doc)}</p>
+      <p>${TYPE_DOCS[e.type_document] || 'Document'} Nº <strong>${erpEsc(e.numero || '—')}</strong> — ${erpFmtDate(e.date_doc)}</p>
     </div>
     <table>
       <tr><td class="l">Patient / Client</td><td><strong>${erpEsc(e.erp_patients ? erpPatientName(e.erp_patients) : (e.patient_nom || '—'))}</strong></td></tr>
@@ -305,7 +738,9 @@ function printEncaissement(id) {
   w.document.close();
 }
 
-// Cloture caisse jou a — rezime pa mòd peman + mark erp_caisse
+// --------------------------------------------------------------
+// CLÔTURE DE CAISSE
+// --------------------------------------------------------------
 async function cloturerCaisse() {
   const today = new Date().toISOString().slice(0, 10);
   const du_jour = (window._encAll || []).filter(e => e.date_doc === today && e.statut === 'paye');
@@ -323,7 +758,6 @@ async function cloturerCaisse() {
   if (!confirm(`Clôturer la caisse du ${erpFmtDate(today)} ?\n\n${lines}\nTotal: ${erpFmtMoney(total)}`)) return;
 
   try {
-    // Jwenn/kreye caisse jounen an pou annex la
     let caisse = null;
     let q = db.from('erp_caisse').select('*').eq('date_caisse', today);
     if (annexe) q = q.eq('annexe_id', annexe);

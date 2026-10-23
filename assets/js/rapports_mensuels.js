@@ -102,25 +102,151 @@ function buildReport(tab, d, periode, annexeNom) {
 
   if (tab === 'comptabilite') {
     const payes = d.enc.filter(e => e.statut === 'paye');
-    const byMode = {};
-    payes.forEach(e => { const k = e.mode_paiement || 'autre'; byMode[k] = (byMode[k] || 0) + parseFloat(e.montant || 0); });
     const totalEnc = sum(payes, 'montant');
     const totRev = sum(d.rev, 'montant') + totalEnc;
     const totDep = sum(d.dep, 'montant');
-    R.titre = `Rapport Comptabilité — ${periode} (${annexeNom})`;
+    R.titre = `Rapport Comptabilité & Caisse — ${periode} (${annexeNom})`;
     R.kpis = [
-      { label: 'Total encaissé', value: erpFmtMoney(totalEnc) },
-      ...Object.entries(byMode).map(([k, v]) => ({ label: `dont ${MODE_PAIEMENTS[k] || k}`, value: erpFmtMoney(v) })),
-      { label: 'Autres revenus', value: erpFmtMoney(sum(d.rev, 'montant')) },
-      { label: 'Dépenses', value: erpFmtMoney(totDep) },
-      { label: 'Résultat net', value: erpFmtMoney(totRev - totDep) },
+      { label: 'Total Recettes (R Total)', value: erpFmtMoney(totRev) },
+      { label: 'Prélèvements / Dépenses', value: erpFmtMoney(totDep) },
+      { label: 'Encaissement Net', value: erpFmtMoney(totRev - totDep) },
+      { label: 'Évaluations réalisées', value: d.evals.length },
+      { label: 'Séances thérapie', value: d.seances.length },
       { label: 'Documents émis', value: d.enc.length },
       { label: 'Clôtures de caisse', value: d.caisses.filter(c => c.solde_fermeture != null).length }
     ];
-    R.table = {
-      head: ['Nº', 'Date', 'Patient', 'Type', 'Montant', 'Mode', 'Statut'],
-      rows: d.enc.map(e => [e.numero, e.date_doc, e.patient_nom || '', e.type_document, e.montant, e.mode_paiement || '', e.statut])
+
+    // Ventilation par date
+    const dateMap = {};
+    const ensureDate = (dt) => {
+      if (!dt) return null;
+      const dStr = dt.slice(0, 10);
+      if (!dateMap[dStr]) {
+        dateMap[dStr] = {
+          date: dStr,
+          nb_eval: 0,
+          nb_therapie: 0,
+          r_eval: 0,
+          r_reeval: 0,
+          r_app: 0,
+          r_therapie: 0,
+          r_autre: 0,
+          prelevement: 0
+        };
+      }
+      return dateMap[dStr];
     };
+
+    d.evals.forEach(ev => {
+      const row = ensureDate(ev.date_evaluation);
+      if (row) row.nb_eval += 1;
+    });
+
+    d.seances.forEach(sc => {
+      const row = ensureDate(sc.date_seance);
+      if (row) row.nb_therapie += 1;
+    });
+
+    payes.forEach(e => {
+      const row = ensureDate(e.date_doc);
+      if (!row) return;
+      const m = (e.motif || '').toLowerCase();
+      const val = parseFloat(e.montant || 0);
+
+      if (m.includes('rééval') || m.includes('reeval')) {
+        row.r_reeval += val;
+      } else if (m.includes('éval') || m.includes('eval') || m.includes('consultation')) {
+        row.r_eval += val;
+        if (row.nb_eval === 0) row.nb_eval += 1;
+      } else if (m.includes('app') || m.includes('proth') || m.includes('orth') || m.includes('atelier')) {
+        row.r_app += val;
+      } else if (m.includes('thérap') || m.includes('therap') || m.includes('physio') || m.includes('séance') || m.includes('seance')) {
+        row.r_therapie += val;
+        if (row.nb_therapie === 0) row.nb_therapie += 1;
+      } else {
+        row.r_autre += val;
+      }
+    });
+
+    d.rev.forEach(rv => {
+      const row = ensureDate(rv.date_transaction);
+      if (row) row.r_autre += parseFloat(rv.montant || 0);
+    });
+
+    d.dep.forEach(dp => {
+      const row = ensureDate(dp.date_transaction);
+      if (row) row.prelevement += parseFloat(dp.montant || 0);
+    });
+
+    const sortedDates = Object.keys(dateMap).sort();
+
+    // Table 1: Synthèse Activités & Caisse par Date
+    const t1Rows = [];
+    let tot_nb_eval = 0, tot_nb_therapie = 0, tot_r1 = 0, tot_prelev1 = 0, tot_enc1 = 0;
+
+    sortedDates.forEach(dt => {
+      const row = dateMap[dt];
+      const r_total = row.r_eval + row.r_reeval + row.r_app + row.r_therapie + row.r_autre;
+      const encaissement = r_total - row.prelevement;
+
+      tot_nb_eval += row.nb_eval;
+      tot_nb_therapie += row.nb_therapie;
+      tot_r1 += r_total;
+      tot_prelev1 += row.prelevement;
+      tot_enc1 += encaissement;
+
+      t1Rows.push([
+        row.date,
+        row.nb_eval,
+        row.nb_therapie,
+        erpFmtMoney(r_total),
+        erpFmtMoney(row.prelevement),
+        erpFmtMoney(encaissement)
+      ]);
+    });
+
+    // Table 2: Ventilation Détaillée des Recettes & Prélèvements
+    const t2Rows = [];
+    let tot_eval = 0, tot_reeval = 0, tot_rapp = 0, tot_rtherapie = 0;
+
+    sortedDates.forEach(dt => {
+      const row = dateMap[dt];
+      const r_total = row.r_eval + row.r_reeval + row.r_app + row.r_therapie + row.r_autre;
+      const encaissement = r_total - row.prelevement;
+
+      tot_eval += row.r_eval;
+      tot_reeval += row.r_reeval;
+      tot_rapp += row.r_app;
+      tot_rtherapie += row.r_therapie;
+
+      t2Rows.push([
+        row.date,
+        erpFmtMoney(row.r_eval),
+        erpFmtMoney(row.r_reeval),
+        erpFmtMoney(row.r_app),
+        erpFmtMoney(row.r_therapie),
+        erpFmtMoney(r_total),
+        erpFmtMoney(row.prelevement),
+        erpFmtMoney(encaissement)
+      ]);
+    });
+
+    R.tables = [
+      {
+        titre: '1. Synthèse Activités & Caisse par Date',
+        head: ['Date', 'Nombre Évaluation', 'Nombre Thérapie', 'R Total', 'Prélèvement', 'Encaissement'],
+        rows: t1Rows,
+        total: ['TOTAL', tot_nb_eval, tot_nb_therapie, erpFmtMoney(tot_r1), erpFmtMoney(tot_prelev1), erpFmtMoney(tot_enc1)]
+      },
+      {
+        titre: '2. Ventilation des Recettes (Évaluation, Réévaluation, Appareillage, Thérapie)',
+        head: ['Date', 'Évaluation', 'Réévaluation', 'R App', 'R Thérapie', 'R Total', 'Prélèvement', 'Encaissement'],
+        rows: t2Rows,
+        total: ['TOTAL', erpFmtMoney(tot_eval), erpFmtMoney(tot_reeval), erpFmtMoney(tot_rapp), erpFmtMoney(tot_rtherapie), erpFmtMoney(tot_r1), erpFmtMoney(tot_prelev1), erpFmtMoney(tot_enc1)]
+      }
+    ];
+
+    R.table = R.tables[0];
   }
 
   if (tab === 'stock') {
@@ -186,11 +312,21 @@ function exportReportCsv(R, periode) {
   let csv = '';
   csv += esc(R.titre) + '\n\n';
   csv += R.kpis.map(k => esc(k.label) + sep + esc(k.value)).join('\n') + '\n\n';
-  if (R.table) {
+
+  if (R.tables && R.tables.length) {
+    R.tables.forEach(tbl => {
+      csv += esc(tbl.titre) + '\n';
+      csv += tbl.head.map(esc).join(sep) + '\n';
+      csv += tbl.rows.map(r => r.map(esc).join(sep)).join('\n') + '\n';
+      if (tbl.total) csv += tbl.total.map(esc).join(sep) + '\n';
+      csv += '\n';
+    });
+  } else if (R.table) {
     csv += R.table.head.map(esc).join(sep) + '\n';
     csv += R.table.rows.map(r => r.map(esc).join(sep)).join('\n');
   }
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `rapport_${_rappTab}_${periode}.csv`;
@@ -201,8 +337,21 @@ function exportReportCsv(R, periode) {
 // ---------- Enpresyon / PDF ----------
 function printReport(R, periode) {
   const settings = window.enterpriseContext?.settings || {};
-  const w = window.open('', '_blank', 'width=820,height=900');
+  const w = window.open('', '_blank', 'width=880,height=900');
   if (!w) return erpToast('Popup bloqué — autorisez les popups', true);
+
+  const tablesHtml = (R.tables && R.tables.length)
+    ? R.tables.map(tbl => `
+        <h3 style="margin-top:20px; font-size:14px;">${erpEsc(tbl.titre)}</h3>
+        <table>
+          <thead><tr>${tbl.head.map(h => `<th>${erpEsc(h)}</th>`).join('')}</tr></thead>
+          <tbody>${tbl.rows.map(r => `<tr>${r.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+          ${tbl.total ? `<tfoot><tr style="font-weight:700; background:#f0f0f0;">${tbl.total.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr></tfoot>` : ''}
+        </table>
+      `).join('')
+    : (R.table ? `<table><thead><tr>${R.table.head.map(h => `<th>${erpEsc(h)}</th>`).join('')}</tr></thead>
+        <tbody>${R.table.rows.map(r => `<tr>${r.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '');
+
   w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
     <title>${erpEsc(R.titre)}</title>
     <style>
@@ -212,7 +361,7 @@ function printReport(R, periode) {
       .kpi{border:1px solid #ccc;border-radius:8px;padding:10px;}
       .kpi .l{font-size:11px;color:#555;}
       .kpi .v{font-size:18px;font-weight:700;}
-      table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px;}
+      table{width:100%;border-collapse:collapse;margin-top:10px;margin-bottom:18px;font-size:12px;}
       th,td{border:1px solid #ccc;padding:6px;text-align:left;}
       th{background:#f0f0f0;}
       .foot{margin-top:24px;font-size:11px;color:#555;text-align:center;}
@@ -220,8 +369,7 @@ function printReport(R, periode) {
     <h1>${erpEsc(R.titre)}</h1>
     <p style="font-size:12px;color:#555;">${erpEsc(settings.company_name || 'HAITI REH-CARE')} — généré le ${new Date().toLocaleDateString('fr-FR')}</p>
     <div class="kpis">${R.kpis.map(k => `<div class="kpi"><div class="l">${erpEsc(k.label)}</div><div class="v">${erpEsc(k.value)}</div></div>`).join('')}</div>
-    ${R.table ? `<table><thead><tr>${R.table.head.map(h => `<th>${erpEsc(h)}</th>`).join('')}</tr></thead>
-      <tbody>${R.table.rows.map(r => `<tr>${r.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : ''}
+    ${tablesHtml}
     <div class="foot">Document généré par le système ERP — ${periode}</div>
     <script>window.onload=()=>window.print();<\/script>
   </body></html>`);
@@ -297,6 +445,28 @@ async function renderRappTab() {
   const R = buildReport(_rappTab, data, _rappPeriode, annexeNom);
   window._currentRapport = R;
 
+  const tablesHtml = (R.tables && R.tables.length)
+    ? R.tables.map(tbl => `
+        <div style="margin-top:20px;">
+          <h4 style="margin:0 0 8px; color:var(--clr-primary,#4f46e5); font-size:15px; font-weight:700;">${erpEsc(tbl.titre)}</h4>
+          <div class="table-container"><table class="table">
+            <thead><tr>${tbl.head.map(h => `<th>${erpEsc(h)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${tbl.rows.length
+                ? tbl.rows.map(r => `<tr>${r.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr>`).join('')
+                : `<tr><td colspan="${tbl.head.length}" style="text-align:center; padding:18px; color:var(--clr-text-muted,#94a3b8);">Aucune donnée pour cette période.</td></tr>`}
+            </tbody>
+            ${tbl.total ? `<tfoot><tr style="font-weight:700; background:var(--clr-bg-soft,#f1f5f9);">${tbl.total.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr></tfoot>` : ''}
+          </table></div>
+        </div>
+      `).join('')
+    : (R.table ? `<div class="table-container"><table class="table">
+        <thead><tr>${R.table.head.map(h => `<th>${erpEsc(h)}</th>`).join('')}</tr></thead>
+        <tbody>${R.table.rows.length
+          ? R.table.rows.map(r => `<tr>${r.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr>`).join('')
+          : `<tr><td colspan="${R.table.head.length}" style="text-align:center; padding:20px; color:var(--clr-text-muted,#94a3b8);">Aucune ligne pour cette période.</td></tr>`}
+        </tbody></table></div>` : '');
+
   body.innerHTML = `
     <div class="card" style="margin-bottom: var(--space-5);">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -315,12 +485,7 @@ async function renderRappTab() {
               <div class="kpi-value">${erpEsc(k.value)}</div>
             </div></div>`).join('')}
         </div>
-        ${R.table ? `<div class="table-container"><table class="table">
-          <thead><tr>${R.table.head.map(h => `<th>${erpEsc(h)}</th>`).join('')}</tr></thead>
-          <tbody>${R.table.rows.length
-            ? R.table.rows.map(r => `<tr>${r.map(c => `<td>${erpEsc(c)}</td>`).join('')}</tr>`).join('')
-            : `<tr><td colspan="${R.table.head.length}" style="text-align:center; padding:20px; color:var(--clr-text-muted,#94a3b8);">Aucune ligne pour cette période.</td></tr>`}
-          </tbody></table></div>` : ''}
+        ${tablesHtml}
       </div>
     </div>`;
 

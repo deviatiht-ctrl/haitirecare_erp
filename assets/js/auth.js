@@ -129,7 +129,7 @@ const ERP_ROLE_DEFAULT_PERMISSIONS = {
   directeur:         { all: true },
   manager:           { clients: true, stock: true, catalogue: true, finances: true, caisse: true, taches: true, rapports: true, rh: true, employes: true, messages: true, parametres: true, users: true },
   secretaire:        { clients: true, patients: true, rdv: true, service_client: true, taches: true, rapports: true, rapports_mensuels: true, messages: true, agenda: true },
-  comptable:         { finances: true, caisse: true, encaissements: true, factures: true, clients: true, patients: true, rapports: true, rapports_mensuels: true, messages: true },
+  comptable:         { caisse: true, encaissements: true, finances: true, factures: true, facturation: true, rapports: true, rapports_mensuels: true },
   responsable_stock: { stock: true, fournisseurs: true, achats: true, rapports: true, rapports_mensuels: true, messages: true },
   commercial:        { clients: true, stock_read: true, catalogue: true, ventes: true, taches: true, rapports: true, messages: true },
   rh:                { rh: true, employes: true, presences: true, conges: true, taches: true, rapports: true, messages: true },

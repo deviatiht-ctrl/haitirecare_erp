@@ -79,6 +79,17 @@ CREATE POLICY "patients_update" ON erp_patients FOR UPDATE USING (
                      'secretaire','receptionniste','medecin','physiotherapeute','employe'])
 );
 
+DROP POLICY IF EXISTS "demandes_update" ON erp_patient_demandes;
+CREATE POLICY "demandes_update" ON erp_patient_demandes FOR UPDATE USING (
+  erp_annexe_visible(annexe_id)
+  AND erp_has_role(ARRAY['pdg','directrice','directeur','manager','secretaire',
+                         'receptionniste','comptable','medecin','physiotherapeute'])
+) WITH CHECK (
+  erp_annexe_visible(annexe_id)
+  AND erp_has_role(ARRAY['pdg','directrice','directeur','manager','secretaire',
+                         'receptionniste','comptable','medecin','physiotherapeute'])
+);
+
 -- 2. Mettre à jour la fonction erp_register_patient (avec receptionniste)
 CREATE OR REPLACE FUNCTION erp_register_patient(p_data jsonb DEFAULT '{}')
 RETURNS jsonb AS $$
