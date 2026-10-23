@@ -955,6 +955,7 @@ function renderPatientStatsHTML() {
 
 function renderPatientList(container) {
   const user = window.currentUser;
+  const isComptable = user?.role === 'comptable';
   const canSeeStats = STAFF_DIRECTION.includes(user?.role)
     || ['secretaire', 'receptionniste', 'manager'].includes(user?.role)
     || (typeof isErpOwner === 'function' && isErpOwner(user));
@@ -974,18 +975,24 @@ function renderPatientList(container) {
                value="${escH(_patientSearch)}">
       </div>
       <div class="page-actions">
-        <button class="btn btn-secondary" onclick="patientShowDemandes()">
-          <i data-lucide="inbox"></i> Demandes
-          ${demandesEnAttente().length
-            ? `<span style="background:#d97706; color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; margin-left:4px;">${demandesEnAttente().length}</span>`
-            : ''}
-        </button>
-        <button class="btn btn-secondary" onclick="patientShowLien()" title="Lien & QR code du formulaire en ligne">
-          <i data-lucide="qr-code"></i> Formulaire en ligne
-        </button>
-        <button class="btn btn-primary" onclick="patientShowForm()">
-          <i data-lucide="plus"></i> Nouveau patient
-        </button>
+        ${!isComptable ? `
+          <button class="btn btn-secondary" onclick="patientShowDemandes()">
+            <i data-lucide="inbox"></i> Demandes
+            ${demandesEnAttente().length
+              ? `<span style="background:#d97706; color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; margin-left:4px;">${demandesEnAttente().length}</span>`
+              : ''}
+          </button>
+          <button class="btn btn-secondary" onclick="patientShowLien()" title="Lien & QR code du formulaire en ligne">
+            <i data-lucide="qr-code"></i> Formulaire en ligne
+          </button>
+          <button class="btn btn-primary" onclick="patientShowForm()">
+            <i data-lucide="plus"></i> Nouveau patient
+          </button>
+        ` : `
+          <button class="btn btn-primary" onclick="window.location.href='/module.html?m=encaissements'">
+            <i data-lucide="wallet"></i> Caisse &amp; Encaissements
+          </button>
+        `}
       </div>
     </div>
     <div class="filters-bar" style="margin-bottom:16px;">
@@ -1042,10 +1049,15 @@ function renderPatientList(container) {
                 <td>${escH(p.phone || '-')}</td>
                 <td>${p.date_enregistrement || (p.created_at || '').slice(0,10) || '-'}</td>
                 <td><span class="status-badge ${p.statut === 'actif' ? 'active' : 'pending'}">${escH(p.statut || 'actif')}</span></td>
-                <td>
+                <td style="white-space:nowrap;">
                   <button class="table-action-btn" onclick="patientShowDossier('${p.id}')">
                     <i data-lucide="folder-open"></i> Dossier
                   </button>
+                  ${isComptable ? `
+                    <button class="table-action-btn" title="Encaisser consultation / achat" style="color:var(--clr-primary,#4f46e5); font-weight:600;" onclick="patientEncaisserDirect('${p.id}')">
+                      <i data-lucide="banknote"></i> Encaisser
+                    </button>
+                  ` : ''}
                 </td>
               </tr>`).join('')
             : `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucun patient ${hasFilters ? 'ne correspond aux filtres.' : 'enregistré.'}</td></tr>`}
@@ -1222,16 +1234,27 @@ async function submitPatientForm(e, container) {
 }
 
 // --------------------------------------------------------------
-// DOSYE PASYAN — rezime + reevalyasyon (Fèy 10)
+// DOSYE PASYAN — rezime + reevalyasyon (Fèy 10) + Paiements/Caisse
 // --------------------------------------------------------------
 async function renderPatientDossier(container, p) {
+  const user = window.currentUser;
+  const isComptable = user?.role === 'comptable';
   const annexe = _annexes.find(a => a.id === p.annexe_id);
   const photoUrl = await patientPhotoSignedUrl(p.photo_url);
-  const { data: reevals } = await db
-    .from('erp_patient_reevaluations')
-    .select('*')
-    .eq('patient_id', p.id)
-    .order('date_reevaluation', { ascending: false });
+
+  const [reevalRes, encRes] = await Promise.all([
+    db.from('erp_patient_reevaluations')
+      .select('*')
+      .eq('patient_id', p.id)
+      .order('date_reevaluation', { ascending: false }),
+    db.from('erp_encaissements')
+      .select('*')
+      .eq('patient_id', p.id)
+      .order('created_at', { ascending: false })
+  ]);
+
+  const reevals = reevalRes.data || [];
+  const encaissements = encRes.data || [];
 
   const row = (lbl, val) => val ? `<div><div class="user-card-detail-label">${lbl}</div><div class="user-card-detail-value">${escH(Array.isArray(val) ? val.join(', ') : val)}</div></div>` : '';
 
@@ -1244,13 +1267,65 @@ async function renderPatientDossier(container, p) {
           ${p.numero_dossier ? ` · Dossier U.N: ${escH(p.numero_dossier)}` : ''}
         </p>
       </div>
-      <div class="page-actions">
-        <button class="btn btn-secondary" onclick="patientEdit('${p.id}')">
-          <i data-lucide="pencil"></i> Modifier
+      <div class="page-actions" style="display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="patientDossierNouveauPaiement('${p.id}')">
+          <i data-lucide="banknote"></i> Encaisser consultation / Achat
         </button>
+        ${!isComptable ? `
+          <button class="btn btn-secondary" onclick="patientEdit('${p.id}')">
+            <i data-lucide="pencil"></i> Modifier
+          </button>
+        ` : ''}
         <button class="btn btn-secondary" onclick="patientShowList()">
           <i data-lucide="arrow-left"></i> Liste
         </button>
+      </div>
+    </div>
+
+    <!-- Section Paiements & Achats du Patient (Comptabilité & Caisse) -->
+    <div class="card" style="margin-bottom:16px; border: 1px solid var(--clr-primary, #4f46e5);">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; background:color-mix(in srgb, var(--clr-primary, #4f46e5) 8%, transparent); padding: 14px var(--space-5);">
+        <div>
+          <h3 class="card-title" style="margin:0; color:var(--clr-primary,#4f46e5); display:flex; align-items:center; gap:8px;">
+            <i data-lucide="banknote"></i> Paiements &amp; Achats (${encaissements.length})
+          </h3>
+          <p style="margin:2px 0 0; font-size:12px; color:var(--clr-text-muted,#64748b);">
+            Consultation, séance de soin, appareillage, matériel ou tout autre achat du patient
+          </p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="patientDossierNouveauPaiement('${p.id}')">
+          <i data-lucide="plus"></i> Nouveau paiement / Achat
+        </button>
+      </div>
+      <div class="card-body" style="padding: var(--space-5);">
+        ${encaissements.length ? `
+          <div class="table-container">
+            <table class="table" style="font-size:13px;">
+              <thead>
+                <tr>
+                  <th>Nº Reçu</th><th>Date</th><th>Motif</th><th>Montant</th><th>Mode</th><th>Statut</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${encaissements.map(e => `
+                  <tr>
+                    <td><strong>${escH(e.numero || '—')}</strong></td>
+                    <td>${e.date_doc || (e.created_at || '').slice(0, 10)}</td>
+                    <td>${escH(e.motif || '—')}</td>
+                    <td><strong>${erpFmtMoney ? erpFmtMoney(e.montant, e.devise) : (e.montant + ' ' + (e.devise || 'HTG'))}</strong></td>
+                    <td>${escH(e.mode_paiement || '—')}</td>
+                    <td><span class="badge ${e.statut === 'paye' ? 'badge-success' : 'badge-warning'}">${escH(e.statut)}</span></td>
+                    <td>
+                      <button class="table-action-btn" title="Imprimer le reçu" onclick="patientPrintReceipt('${e.id}')">
+                        <i data-lucide="printer"></i>
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `<p style="color:var(--clr-text-muted,#94a3b8); margin:0;">Aucun paiement ou achat enregistré pour ce patient pour le moment.</p>`}
       </div>
     </div>
 
@@ -1299,6 +1374,7 @@ async function renderPatientDossier(container, p) {
       </div>` : ''}
     </div>
 
+    ${!isComptable ? `
     <div class="card" style="margin-top:16px;">
       <div class="card-header"><h3 class="card-title">Fiches de réévaluation</h3></div>
       <div class="card-body" style="padding: var(--space-5);">
@@ -1332,7 +1408,233 @@ async function renderPatientDossier(container, p) {
           </form>
         </details>
       </div>
-    </div>`;
+    </div>` : ''}`;
+
+  document.getElementById('reeval-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const modifs = String(fd.get('modifications_text') || '')
+      .split('\n').map(l => l.trim()).filter(Boolean)
+      .map(l => ({ date: fd.get('date_reevaluation') || null, modification: l }));
+    const rec = {
+      patient_id: p.id,
+      date_reevaluation: fd.get('date_reevaluation') || null,
+      conclusion: fd.get('conclusion') || null,
+      modifications: modifs,
+      frequence_tx: fd.get('frequence_tx') || null,
+      evaluateur_nom: fd.get('evaluateur_nom') || null,
+      created_by: window.currentUser?.id || null
+    };
+    const { error } = await db.from('erp_patient_reevaluations').insert(rec);
+    if (error) { alert('Erreur: ' + error.message); return; }
+    if (typeof logActivity === 'function') logActivity('Réévaluation', 'Patients', `Réévaluation ${p.code || p.nom}`);
+    renderPatientDossier(container, p);
+  });
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function patientEncaisserDirect(patientId) {
+  patientDossierNouveauPaiement(patientId);
+}
+
+function patientDossierNouveauPaiement(patientId) {
+  const p = (_patients || []).find(x => x.id === patientId) || _currentPatient;
+  if (!p) return;
+
+  const nomComplet = `${p.nom || ''} ${p.prenom || ''}`.trim();
+  const codeDossier = p.code || p.numero_dossier || '';
+
+  const modalHtml = `
+    <div class="modal-header">
+      <h3 class="modal-title">Encaisser consultation / Achat — ${escH(nomComplet)}</h3>
+      <button class="modal-close" onclick="closePatientPaymentModal()"><i data-lucide="x"></i></button>
+    </div>
+    <form id="dossier-enc-form" class="modal-body">
+      <div style="background:var(--clr-bg-soft,#f1f5f9); padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:13px;">
+        <strong>Patient :</strong> ${escH(nomComplet)} ${codeDossier ? `(${escH(codeDossier)})` : ''} · <strong>Tél :</strong> ${escH(p.phone || '—')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type de prestation / Achat *</label>
+        <select name="type_prestation" id="dossier-enc-type" class="form-select form-input">
+          <option value="Consultation / Évaluation">Consultation / Évaluation</option>
+          <option value="Réévaluation">Réévaluation</option>
+          <option value="Séance Physiothérapie">Séance Physiothérapie</option>
+          <option value="Appareillage (Orthèse/Prothèse)">Appareillage (Orthèse / Prothèse)</option>
+          <option value="Achat de Matériel">Achat de Matériel</option>
+          <option value="Autre prestation">Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Motif / Description précise *</label>
+        <input type="text" name="motif" id="dossier-enc-motif" class="form-input" required value="Consultation / Évaluation">
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Montant *</label>
+          <input type="number" name="montant" class="form-input" min="0" step="0.01" required placeholder="ex: 500">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Devise</label>
+          <select name="devise" class="form-select form-input">
+            <option value="HTG" selected>HTG</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Mode de paiement *</label>
+          <select name="mode_paiement" class="form-select form-input" required>
+            <option value="cash" selected>Cash</option>
+            <option value="moncash">MonCash</option>
+            <option value="cheque">Chèque</option>
+            <option value="virement">Virement</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Référence (MonCash, chèque...)</label>
+          <input type="text" name="reference" class="form-input" placeholder="Optionnel">
+        </div>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closePatientPaymentModal()">Annuler</button>
+      <button class="btn btn-primary" id="dossier-enc-save">
+        <i data-lucide="check"></i> Enregistrer &amp; Imprimer le reçu
+      </button>
+    </div>
+  `;
+
+  let m = document.getElementById('patient-payment-modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'patient-payment-modal';
+    m.style.cssText = 'position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; padding:16px;';
+    document.body.appendChild(m);
+  }
+  m.innerHTML = `<div class="card" style="width:100%; max-width:540px; box-shadow:0 20px 40px rgba(0,0,0,0.3); border-radius:16px; overflow:hidden;">${modalHtml}</div>`;
+  m.style.display = 'flex';
+
+  document.getElementById('dossier-enc-type')?.addEventListener('change', (e) => {
+    const mInp = document.getElementById('dossier-enc-motif');
+    if (mInp) mInp.value = e.target.value;
+  });
+
+  document.getElementById('dossier-enc-save')?.addEventListener('click', async () => {
+    const form = document.getElementById('dossier-enc-form');
+    if (!form.checkValidity()) return form.reportValidity();
+
+    const fd = new FormData(form);
+    const montant = parseFloat(fd.get('montant') || 0);
+    const motif = fd.get('motif');
+    const mode = fd.get('mode_paiement') || 'cash';
+    const devise = fd.get('devise') || 'HTG';
+    const ref = fd.get('reference') || null;
+
+    const annId = p.annexe_id || (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null);
+
+    const payload = {
+      patient_id: p.id,
+      patient_nom: nomComplet,
+      type_document: 'recu',
+      montant: montant,
+      devise: devise,
+      mode_paiement: mode,
+      reference: ref,
+      motif: motif,
+      statut: 'paye',
+      date_doc: new Date().toISOString().slice(0, 10),
+      annexe_id: annId || undefined,
+      enterprise_id: p.enterprise_id || (window.enterpriseContext?.enterprise?.id) || undefined,
+      created_by: window.currentUser?.id
+    };
+
+    const { data, error } = await db.from('erp_encaissements')
+      .insert(payload)
+      .select('*, erp_patients(code, nom, prenom)')
+      .single();
+
+    if (error) {
+      alert('Erreur: ' + error.message);
+      return;
+    }
+
+    closePatientPaymentModal();
+    alert(`Paiement de ${montant} ${devise} enregistré (Reçu Nº ${data.numero || ''})`);
+
+    // Rafrechi dosye a
+    const container = document.getElementById('module-content');
+    if (container) renderPatientDossier(container, p);
+
+    // Enprime resi a
+    patientPrintReceipt(data.id, data);
+  });
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closePatientPaymentModal() {
+  const m = document.getElementById('patient-payment-modal');
+  if (m) m.style.display = 'none';
+}
+
+function patientPrintReceipt(encId, preloadedData = null) {
+  if (typeof printEncaissement === 'function') {
+    printEncaissement(encId);
+    return;
+  }
+
+  // Fallback direct si printEncaissement pa defini
+  const openReceiptWindow = (e) => {
+    const settings = window.enterpriseContext?.settings || {};
+    const company = settings.company_name || 'HAITI REH-CARE';
+    const w = window.open('', '_blank', 'width=640,height=760');
+    if (!w) return alert('Veuillez autoriser les popups pour imprimer le reçu.');
+
+    w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+      <title>Reçu ${e.numero || ''}</title>
+      <style>
+        body { font-family: system-ui, Arial, sans-serif; color: #111; padding: 32px; max-width: 560px; margin: auto; }
+        .head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 20px; }
+        .head h1 { margin: 0; font-size: 20px; }
+        .head p { margin: 2px 0; font-size: 12px; color: #444; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        td { padding: 7px 4px; font-size: 14px; border-bottom: 1px solid #eee; }
+        td.l { color: #555; width: 42%; }
+        .total { font-size: 22px; font-weight: 700; text-align: right; margin-top: 14px; }
+        .foot { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #444; }
+        .sig { border-top: 1px solid #999; padding-top: 6px; width: 40%; text-align: center; }
+      </style></head><body>
+      <div class="head">
+        <h1>${company}</h1>
+        <p>Reçu de paiement Nº <strong>${e.numero || '—'}</strong> — ${e.date_doc || ''}</p>
+      </div>
+      <table>
+        <tr><td class="l">Patient</td><td><strong>${e.patient_nom || '—'}</strong></td></tr>
+        <tr><td class="l">Motif</td><td>${e.motif || '—'}</td></tr>
+        <tr><td class="l">Mode de paiement</td><td>${(e.mode_paiement || '').toUpperCase()}</td></tr>
+        ${e.reference ? `<tr><td class="l">Référence</td><td>${e.reference}</td></tr>` : ''}
+        <tr><td class="l">Statut</td><td>Payé</td></tr>
+      </table>
+      <div class="total">${e.montant || 0} ${e.devise || 'HTG'}</div>
+      <div class="foot">
+        <div class="sig">Signature du caissier</div>
+        <div class="sig">Signature du client</div>
+      </div>
+      <script>window.onload = () => { window.print(); }<\/script>
+    </body></html>`);
+    w.document.close();
+  };
+
+  if (preloadedData) {
+    openReceiptWindow(preloadedData);
+  } else {
+    db.from('erp_encaissements').select('*').eq('id', encId).single().then(({ data }) => {
+      if (data) openReceiptWindow(data);
+    });
+  }
+}
 
   document.getElementById('reeval-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1371,6 +1673,10 @@ function patientShowList() {
   if (c) renderPatientsModule(c);
 }
 function patientShowForm() {
+  if (window.currentUser?.role === 'comptable') {
+    alert("Le comptable ne peut pas créer de nouveau patient. Vous pouvez uniquement consulter le dossier pour encaisser une consultation ou un achat.");
+    return;
+  }
   _patientView = 'form';
   _editingPatient = null;
   _prefillPatient = null;
@@ -1379,6 +1685,10 @@ function patientShowForm() {
   if (c) renderPatientsModule(c);
 }
 function patientEdit(id) {
+  if (window.currentUser?.role === 'comptable') {
+    alert("Le comptable n'a pas accès à la modification des informations médicales du patient.");
+    return;
+  }
   _editingPatient = _patients.find(p => p.id === id) || _currentPatient;
   _prefillPatient = null;
   _demandeEnCours = null;

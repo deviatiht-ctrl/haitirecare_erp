@@ -462,6 +462,7 @@ const ERP_QUICK_ACTIONS = {
   catalogue:  { label: 'Catalogue',        desc: 'Gérer les offres et produits',         color: '#10b981' },
   ventes:     { label: 'Nouvelle Vente',   desc: 'Enregistrer une vente',                color: '#f59e0b' },
   caisse:     { label: 'Caisse',           desc: 'Ouvrir la caisse du jour',             color: '#22c55e' },
+  encaissements: { label: 'Encaisser / Reçu', desc: 'Émettre un reçu ou une facture',      color: '#10b981' },
   taches:     { label: 'Nouvelle Tâche',   desc: 'Créer une tâche ou un projet',         color: '#f59e0b' },
   rdv:        { label: 'Rendez-vous',      desc: 'Planifier une consultation',           color: '#ec4899' },
   seances:    { label: 'Nouvelle Séance',  desc: 'Enregistrer une séance de soin',       color: '#0ea5e9' },
@@ -482,9 +483,16 @@ const ERP_QUICK_ACTIONS = {
 function renderDynamicQuickActions() {
   const actionsContainer = document.getElementById('dynamic-quick-actions');
   if (!actionsContainer) return;
+  const user = window.currentUser;
+  const isComptable = user?.role === 'comptable';
 
   const items = (typeof getVisibleNavModules === 'function' ? getVisibleNavModules() : [])
     .filter(i => ERP_QUICK_ACTIONS[i.code])
+    .filter(i => {
+      // Pour le comptable, ne pas afficher "Nouveau Patient"
+      if (isComptable && i.code === 'patients') return false;
+      return true;
+    })
     .slice(0, 4);
 
   if (!items.length) {
