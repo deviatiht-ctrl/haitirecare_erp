@@ -163,12 +163,8 @@
             </div>
           </div>
           <div class="field full">
-            <label>Envoyé de (qui vous a référé ?)</label>
-            <div class="check-grid" id="envoye-de-group"></div>
-          </div>
-          <div class="field">
-            <label>Autre médecin / hôpital / physio</label>
-            <input type="text" name="envoye_de_autre">
+            <label>Référence / Envoyé de (qui vous a référé ?)</label>
+            <input type="text" name="envoye_de_autre" placeholder="Médecin, hôpital, centre de santé, ami...">
           </div>
           <div class="field full">
             <label>Déjà appareillé ?</label>
@@ -341,10 +337,7 @@
       'Sud': ['Aquin','Arniquet','Camp-Perrin','Cavaillon','Chantal','Chardonnières','Île-à-Vache','Les Anglais','Les Cayes','Maniche','Port-Salut','Roche-à-Bateaux','Saint-Jean-du-Sud','Saint-Louis-du-Sud','Tiburon','Torbeck'],
       'Sud-Est': ['Anse-à-Pitre','Bainet','Belle-Anse','Cayes-Jacmel','Côtes-de-Fer','Grand-Gosier','Jacmel','La Vallée-de-Jacmel','Marigot','Thiotte']
     };
-    const ENVOYE_DE_OPTIONS = [
-      'Clinique Saint Esprit', 'Physio Stephanie', 'Physio Erase Raynald',
-      'Dr Desmangles', 'Dr Moise', 'Dr Edmond', 'Dr Sergio'
-    ];
+    const ENVOYE_DE_OPTIONS = [];
     const AMP_MI = [
       ['desarticulation_hanche', 'Désarticulation de la hanche'],
       ['femorale', 'Fémorale'], ['tibiale', 'Tibiale'],
@@ -364,8 +357,8 @@
       await initSite();
 
       // Lis referan yo
-      document.getElementById('envoye-de-group').innerHTML = ENVOYE_DE_OPTIONS.map(o =>
-        `<label><input type="checkbox" name="envoye_de" value="${o}"> ${o}</label>`).join('');
+      const envGroup = document.getElementById('envoye-de-group');
+      if (envGroup) envGroup.innerHTML = '';
 
       // Nivo anplitasyon
       const ampBoxes = { 'amp-mi-gauche': AMP_MI, 'amp-mi-droite': AMP_MI,

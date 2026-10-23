@@ -66,10 +66,7 @@ function inCommune(name, label) {
 // --------------------------------------------------------------
 // Konfigirasyon fòm la — seksyon yo swiv fòm papye a
 // --------------------------------------------------------------
-const ENVOYE_DE_OPTIONS = [
-  'Clinique Saint Esprit', 'Physio Stephanie', 'Physio Erase Raynald',
-  'Dr Desmangles', 'Dr Moise', 'Dr Edmond', 'Dr Sergio'
-];
+const ENVOYE_DE_OPTIONS = [];
 const AMP_MI = [
   ['desarticulation_hanche', 'Désarticulation de la hanche'],
   ['femorale', 'Fémorale'],
@@ -246,11 +243,12 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
       <summary class="card-header" style="cursor:pointer;"><h3 class="card-title">I. Dossier &amp; Informations personnelles</h3></summary>
       <div class="card-body" style="padding: var(--space-5); display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px;">
         <div class="form-group">
-          <label class="form-label">Code patient (automatique)</label>
-          <input type="text" class="form-input" id="code-preview" readonly
-                 value="${_editingPatient?.code || annexeNextCodePreview(userAnnexe)}"
-                 style="background: var(--clr-bg-soft, #f1f5f9); font-weight:600;">
-          ${_editingPatient ? '' : '<small style="color:var(--clr-text-muted,#94a3b8);">Préfixe de votre annexe — attribué à l\'enregistrement</small>'}
+          <label class="form-label">Code patient (manuel)</label>
+          <input type="text" class="form-input" name="code" id="code-patient"
+                 placeholder="Ex: HRC-00123"
+                 value="${escH(_editingPatient?.code || '')}"
+                 style="font-weight:600;">
+          <small style="color:var(--clr-text-muted,#94a3b8);">Saisissez le code du dossier patient</small>
         </div>
         ${annexeField}
         ${inText('numero_dossier', 'N° du dossier (U.N)')}
@@ -281,8 +279,7 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
     <details class="card" style="margin-bottom:16px;">
       <summary class="card-header" style="cursor:pointer;"><h3 class="card-title">II. Référence &amp; Invalidité</h3></summary>
       <div class="card-body" style="padding: var(--space-5); display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px;">
-        ${inCheckGroup('envoye_de', 'Envoyé de', ENVOYE_DE_OPTIONS)}
-        ${inText('envoye_de_autre', 'Autre médecin / hôpital / physio')}
+        ${inText('envoye_de_autre', 'Référence (Envoyé de / Médecin / Hôpital / Physio)', 'text')}
         ${inRadioGroup('deja_appareille', 'Déjà appareillé', [['non','Non'],['oui','Oui'],['oui_hrc','Oui, par Haiti Reh-Care']])}
         ${inText('diagnostic', 'Diagnostic / Invalidité')}
         ${inCheckGroup('cause_invalidite', "Cause de l'invalidité", [['congenitale_infectieuse','Congénitale / Infectieuse'],['cancereuse','Cancéreuse'],['traumatique','Traumatique'],['vasculaire','Vasculaire']], true)}
@@ -505,7 +502,7 @@ function collectPatientForm(form) {
   const fd = new FormData(form);
   const data = {};
 
-  const SIMPLE = ['numero_dossier','date_enregistrement','nom','prenom',
+  const SIMPLE = ['code','numero_dossier','date_enregistrement','nom','prenom',
     'date_naissance','personne_responsable','phone','email','adresse_rue',
     'province','commune','departement','localite','sexe','etat_civil',
     'carte_identite','envoye_de_autre','deja_appareille','diagnostic',
@@ -522,6 +519,10 @@ function collectPatientForm(form) {
     const v = fd.get(k);
     if (v !== null && v !== '') data[k] = v;
   });
+
+  if (data.code && !data.numero_dossier) data.numero_dossier = data.code;
+  if (!data.code && data.numero_dossier) data.code = data.numero_dossier;
+  if (data.envoye_de_autre) data.envoye_de = [data.envoye_de_autre];
 
   const n = parseInt(fd.get('nombre_enfants'), 10);
   if (!isNaN(n)) data.nombre_enfants = n;
@@ -1042,17 +1043,6 @@ function renderPatientForm(container, user) {
 
   const form = document.getElementById('patient-form');
 
-  // Direksyon: preview kòd la swiv annex ki chwazi a
-  const annexeSelect = form.querySelector('#annexe-select');
-  const codePreview = form.querySelector('#code-preview');
-  const updateCodePreview = () => {
-    const opt = annexeSelect?.selectedOptions?.[0];
-    if (opt && codePreview && !_editingPatient) codePreview.value = opt.dataset.code || '—';
-  };
-  if (annexeSelect) {
-    annexeSelect.addEventListener('change', updateCodePreview);
-    updateCodePreview();
-  }
 
   // Depatman -> filtre lis komin yo
   const deptSelect = form.querySelector('#patient-departement');
@@ -1106,8 +1096,39 @@ async function submitPatientForm(e, container) {
       return;
     }
 
-    const { data: created, error } = await db.rpc('erp_register_patient', { p_data: data });
-    if (error) throw error;
+    let created = null;
+    const manualCode = (data.code || data.numero_dossier || '').trim();
+
+    // Eseye RPC erp_register_patient
+    const { data: rpcData, error: rpcErr } = await db.rpc('erp_register_patient', { p_data: data });
+    if (!rpcErr && rpcData) {
+      created = rpcData;
+      // Asire kòd manyèl la konsève si li te antre
+      if (manualCode && created?.id && created.code !== manualCode) {
+        await db.from('erp_patients').update({ code: manualCode, numero_dossier: manualCode }).eq('id', created.id);
+        created.code = manualCode;
+      }
+    } else {
+      // Fallback: fè insert dirèk nan erp_patients
+      const annId = data.annexe_id || (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null);
+      const payload = {
+        ...data,
+        code: manualCode || undefined,
+        numero_dossier: data.numero_dossier || manualCode || undefined,
+        annexe_id: annId || undefined,
+        enterprise_id: window.enterpriseContext?.enterprise?.id || undefined,
+        created_by: window.currentUser?.id || undefined,
+        statut: 'actif',
+        is_active: true
+      };
+      const { data: insData, error: insErr } = await db
+        .from('erp_patients')
+        .insert(payload)
+        .select()
+        .single();
+      if (insErr) throw insErr;
+      created = insData;
+    }
 
     if (typeof logActivity === 'function') logActivity('Création', 'Patients', `Patient ${created?.code || ''} enregistré`);
 
