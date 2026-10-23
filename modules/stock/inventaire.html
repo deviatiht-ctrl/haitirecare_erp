@@ -325,10 +325,17 @@
           const titleEl = document.querySelector('.topbar-title');
           if (titleEl) titleEl.textContent = categoryName;
 
+          const hasMatchingCategory = catParam && allProducts.some(
+            p => p.categorie?.toLowerCase().includes(catParam.toLowerCase())
+          );
           const filterCatEl = document.getElementById('filter-category');
-          if (filterCatEl) filterCatEl.value = categoryName;
-
-          applyFilters();
+          if (filterCatEl && hasMatchingCategory) {
+            filterCatEl.value = catParam;
+            applyFilters();
+          } else {
+            if (filterCatEl) filterCatEl.value = '';
+            renderProductsTable(allProducts);
+          }
         } else {
           renderProductsTable(allProducts);
         }

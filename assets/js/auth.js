@@ -57,7 +57,7 @@ const ERP_MODULE_REGISTRY = {
   services:     { label: 'Services & Tarifs',    icon: 'clipboard-list',   page: null,                                   section: 'Gestion' },
   facturation_medical: { label: 'Facturation Médicale', icon: 'receipt',   page: null,                                   section: 'Gestion' },
   pharmacie:    { label: 'Pharmacie',            icon: 'pill',             page: null,                                   section: 'Gestion' },
-  materiel_orthopedique: { label: 'Matériel Orthopédique', icon: 'package-plus', page: '/modules/stock/inventaire.html?cat=Mat%C3%A9riel%20Orthop%C3%A9dique&m=materiel_orthopedique', section: 'Gestion' },
+  materiel_orthopedique: { label: 'Matériel Orthopédique', icon: 'package-plus', page: '/modules/stock/inventaire.html?m=materiel_orthopedique', section: 'Gestion' },
   // Workflow clinique & opérations (multi-annexes)
   consultations: { label: 'Consultations & Évaluations', icon: 'stethoscope',   page: null, section: 'Clinique' },
   atelier:       { label: 'Atelier — Fabrication',  icon: 'hammer',           page: null,   section: 'Clinique' },
@@ -523,7 +523,7 @@ async function login(email, password) {
   try {
     // First authenticate with Supabase
     const { data: authData, error: authError } = await db.auth.signInWithPassword({
-      email: email,
+      email: (email || '').trim().toLowerCase(),
       password: password
     });
     

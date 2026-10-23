@@ -681,11 +681,33 @@ async function patientPhotoSignedUrl(path) {
 // --------------------------------------------------------------
 // VIIS — lis / fòm / dosye
 // --------------------------------------------------------------
+async function loadAllPatients() {
+  let all = [];
+  let from = 0;
+  const batch = 1000;
+  while (true) {
+    const { data, error } = await db
+      .from('erp_patients')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + batch - 1);
+    if (error) {
+      console.error('[patients] load error:', error);
+      break;
+    }
+    if (!data || !data.length) break;
+    all.push(...data);
+    if (data.length < batch) break;
+    from += batch;
+  }
+  return all;
+}
+
 async function renderPatientsModule(container, meta) {
   const user = window.currentUser;
 
-  const [{ data: patients }, { data: annexes }, { data: demandes }] = await Promise.all([
-    db.from('erp_patients').select('*').order('created_at', { ascending: false }).limit(200),
+  const [patients, { data: annexes }, { data: demandes }] = await Promise.all([
+    loadAllPatients(),
     db.from('erp_annexes').select('*').eq('is_active', true).order('is_principale', { ascending: false }),
     loadDemandes()
   ]);
