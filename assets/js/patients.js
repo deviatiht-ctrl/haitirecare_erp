@@ -212,10 +212,23 @@ function jsonInputs(group, keys) {
 // Preview pwochen kòd pasyan pou yon annex (san enkremante kontè a)
 function annexeNextCodePreview(annexe) {
   if (!annexe) return '—';
-  const prefix = annexe.code || 'HRC';
-  const nextSeq = (annexe.patient_seq || 0) + 1;
-  const padLen = prefix === 'HRC' ? 6 : 4;
-  return `${prefix}-${String(nextSeq).padStart(padLen, '0')}`;
+  const prefix = annexe.code || 'PAP';
+  return `${prefix}-${String((annexe.patient_seq || 0) + 1).padStart(4, '0')}`;
+}
+
+// Prochain numéro de dossier HRC (série générale continuing from 1161)
+function getNextDossierPreview() {
+  let maxNum = 1161;
+  (_patients || []).forEach(p => {
+    const raw = (p.numero_dossier || p.code || '');
+    if (raw.toUpperCase().startsWith('HRC-')) {
+      const n = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(n) && n > maxNum && n < 2000) {
+        maxNum = n;
+      }
+    }
+  });
+  return `HRC-${String(maxNum + 1).padStart(6, '0')}`;
 }
 
 function renderPatientFormHTML(user, canChooseAnnexe) {
@@ -250,10 +263,16 @@ function renderPatientFormHTML(user, canChooseAnnexe) {
           <input type="text" class="form-input" id="code-preview" readonly
                  value="${_editingPatient?.code || annexeNextCodePreview(userAnnexe)}"
                  style="background: var(--clr-bg-soft, #f1f5f9); font-weight:600;">
-          ${_editingPatient ? '' : '<small style="color:var(--clr-text-muted,#94a3b8);">Numérotation automatique qui continue la série</small>'}
+          ${_editingPatient ? '' : '<small style="color:var(--clr-text-muted,#94a3b8);">Préfixe de votre annexe (ex: PAP-0001)</small>'}
         </div>
         ${annexeField}
-        ${inText('numero_dossier', 'N° du dossier (U.N)')}
+        <div class="form-group">
+          <label class="form-label">N° du dossier (U.N)</label>
+          <input type="text" class="form-input" name="numero_dossier" id="numero-dossier-input"
+                 value="${escH(_editingPatient?.numero_dossier || getNextDossierPreview())}"
+                 style="font-weight:600;">
+          ${_editingPatient ? '' : '<small style="color:var(--clr-text-muted,#94a3b8);">Série générale HRC (automatique)</small>'}
+        </div>
         ${inCheckGroup('type_service', 'Type de service', [['PO','P/O'],['PHYSIO','PHYSIO'],['MED','MED']], true)}
         <div class="form-group">
           <label class="form-label">Photo du patient</label>
@@ -831,7 +850,7 @@ function patientSortRows(rows) {
 function patientFilteredRows() {
   const q = _patientSearch.toLowerCase();
   return patientSortRows(_patients.filter(p =>
-    (!q || `${p.code || ''} ${p.nom} ${p.prenom || ''} ${p.phone || ''}`.toLowerCase().includes(q))
+    (!q || `${p.code || ''} ${p.numero_dossier || ''} ${p.nom} ${p.prenom || ''} ${p.phone || ''}`.toLowerCase().includes(q))
     && (!_patientFilterAnnexe
         || (_patientFilterAnnexe === '__none__' ? !p.annexe_id : p.annexe_id === _patientFilterAnnexe))
     && (!_patientFilterStatut || (p.statut || 'actif') === _patientFilterStatut)
@@ -983,7 +1002,7 @@ function renderPatientList(container) {
         <table class="table">
           <thead>
             <tr>
-              <th>Code</th><th>Patient</th><th>Annexe</th><th>Service</th>
+              <th>Code</th><th>N° Dossier</th><th>Patient</th><th>Annexe</th><th>Service</th>
               <th>Téléphone</th><th>Enregistré le</th><th>Statut</th><th></th>
             </tr>
           </thead>
@@ -991,6 +1010,7 @@ function renderPatientList(container) {
             ${rows.length ? rows.map(p => `
               <tr>
                 <td><strong>${escH(p.code || '-')}</strong></td>
+                <td><span style="font-weight:600; color:var(--clr-primary,#4f46e5);">${escH(p.numero_dossier || '-')}</span></td>
                 <td>${escH(p.nom)} ${escH(p.prenom || '')}</td>
                 <td>${escH(annexeOf(p)?.code || '-')}</td>
                 <td>${(p.type_service || []).join(', ') || '-'}</td>
@@ -1003,7 +1023,7 @@ function renderPatientList(container) {
                   </button>
                 </td>
               </tr>`).join('')
-            : `<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucun patient ${hasFilters ? 'ne correspond aux filtres.' : 'enregistré.'}</td></tr>`}
+            : `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--clr-text-muted,#94a3b8);">Aucun patient ${hasFilters ? 'ne correspond aux filtres.' : 'enregistré.'}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1111,24 +1131,20 @@ async function submitPatientForm(e, container) {
     }
 
     let created = null;
-    const manualCode = (data.code || data.numero_dossier || '').trim();
+    if (!data.numero_dossier) {
+      data.numero_dossier = getNextDossierPreview();
+    }
 
     // Eseye RPC erp_register_patient
     const { data: rpcData, error: rpcErr } = await db.rpc('erp_register_patient', { p_data: data });
     if (!rpcErr && rpcData) {
       created = rpcData;
-      // Asire kòd manyèl la konsève si li te antre
-      if (manualCode && created?.id && created.code !== manualCode) {
-        await db.from('erp_patients').update({ code: manualCode, numero_dossier: manualCode }).eq('id', created.id);
-        created.code = manualCode;
-      }
     } else {
       // Fallback: fè insert dirèk nan erp_patients
       const annId = data.annexe_id || (typeof getInsertAnnexeId === 'function' ? getInsertAnnexeId() : null);
       const payload = {
         ...data,
-        code: manualCode || undefined,
-        numero_dossier: data.numero_dossier || manualCode || undefined,
+        numero_dossier: data.numero_dossier || getNextDossierPreview(),
         annexe_id: annId || undefined,
         enterprise_id: window.enterpriseContext?.enterprise?.id || undefined,
         created_by: window.currentUser?.id || undefined,

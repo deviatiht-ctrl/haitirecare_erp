@@ -1,19 +1,10 @@
 -- ============================================================
--- INITIALISER LE CODE PATIENT AUTOMATIQUE (SERIE HRC-001162...)
--- A executer dans Supabase SQL Editor
+-- LOGIQUE NUMERO DOSSIER (HRC-001162...) & CODE ANNEXE
+-- 1. Code patient = préfixe annexe (PAP-0001, LEO-0001...)
+-- 2. N° Dossier = série générale HRC (HRC-001162...)
 -- ============================================================
 
--- 1. Mettre a jour l'annexe du Siege Principal avec code 'HRC' et sequence 1161
-UPDATE erp_annexes
-   SET code = 'HRC',
-       nom = 'Siège Principal (HAITI REH-CARE)',
-       patient_seq = 1161,
-       is_principale = true
- WHERE is_principale = true
-    OR code IN ('PAP', 'PRN', 'HRC')
-    OR id IN (SELECT annexe_id FROM erp_patients WHERE annexe_id IS NOT NULL LIMIT 1);
-
--- 2. Mettre a jour la fonction erp_register_patient pour numerotation automatique 6 chiffres
+-- 1. Mettre à jour la fonction erp_register_patient
 CREATE OR REPLACE FUNCTION erp_register_patient(p_data jsonb DEFAULT '{}')
 RETURNS jsonb AS $$
 DECLARE
@@ -22,6 +13,7 @@ DECLARE
   v_prefix text;
   v_seq int;
   v_code text;
+  v_dossier text;
   v_eid uuid;
   v_patient_id uuid;
   v_row erp_patients;
@@ -31,52 +23,61 @@ BEGIN
     RAISE EXCEPTION 'Permission denied: staff only';
   END IF;
 
-  -- Code manuel optionnel si fourni
-  IF p_data ? 'code' AND NULLIF(trim(p_data->>'code'), '') IS NOT NULL THEN
-    v_code := trim(p_data->>'code');
-  ELSIF p_data ? 'numero_dossier' AND NULLIF(trim(p_data->>'numero_dossier'), '') IS NOT NULL THEN
-    v_code := trim(p_data->>'numero_dossier');
-  END IF;
-
-  p_data := p_data - 'id' - 'code' - 'enterprise_id' - 'created_by'
-                  - 'user_id' - 'created_at' - 'updated_at';
-
   v_eid := erp_get_user_enterprise();
   SELECT annexe_id INTO v_user_annexe FROM erp_users WHERE id = auth.uid();
 
+  -- Choix de l'annexe
   IF erp_can_manage_users() AND p_data ? 'annexe_id'
      AND NULLIF(p_data->>'annexe_id','') IS NOT NULL THEN
     v_annexe_id := (p_data->>'annexe_id')::uuid;
   ELSE
     v_annexe_id := v_user_annexe;
   END IF;
-  p_data := p_data - 'annexe_id';
 
   IF v_annexe_id IS NULL THEN
     SELECT id INTO v_annexe_id FROM erp_annexes
      WHERE (v_eid IS NULL OR enterprise_id = v_eid OR enterprise_id IS NULL)
        AND is_active
-     ORDER BY (code = 'HRC') DESC, is_principale DESC, created_at
+     ORDER BY is_principale DESC, created_at
      LIMIT 1;
   END IF;
 
-  IF v_annexe_id IS NULL THEN
-    INSERT INTO erp_annexes (enterprise_id, code, nom, is_principale, created_by, patient_seq)
-    VALUES (v_eid, 'HRC', 'Siège Principal', true, auth.uid(), 1161)
-    RETURNING id INTO v_annexe_id;
-  END IF;
-
-  -- Numerotation automatique : incremente patient_seq et produit HRC-001162, etc.
-  IF v_code IS NULL THEN
+  -- A. Code patient : préfixe de l'annexe (ex: PAP-0001, LEO-0001)
+  IF p_data ? 'code' AND NULLIF(trim(p_data->>'code'), '') IS NOT NULL THEN
+    v_code := trim(p_data->>'code');
+  ELSE
     UPDATE erp_annexes
        SET patient_seq = patient_seq + 1
      WHERE id = v_annexe_id
     RETURNING code, patient_seq INTO v_prefix, v_seq;
-    v_code := v_prefix || '-' || lpad(v_seq::text, CASE WHEN v_prefix = 'HRC' THEN 6 ELSE 4 END, '0');
+    v_code := v_prefix || '-' || lpad(v_seq::text, 4, '0');
   END IF;
 
+  -- B. Numéro de dossier : série générale HRC (HRC-001162...)
+  IF p_data ? 'numero_dossier' AND NULLIF(trim(p_data->>'numero_dossier'), '') IS NOT NULL THEN
+    v_dossier := trim(p_data->>'numero_dossier');
+  ELSE
+    SELECT 'HRC-' || lpad((
+      COALESCE(
+        MAX(NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int),
+        1161
+      ) + 1
+    )::text, 6, '0') INTO v_dossier
+    FROM erp_patients
+    WHERE numero_dossier ILIKE 'HRC-%'
+      AND NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int < 2000;
+
+    IF v_dossier IS NULL THEN
+      v_dossier := 'HRC-001162';
+    END IF;
+  END IF;
+
+  -- Nettoyer p_data des champs système
+  p_data := p_data - 'id' - 'code' - 'numero_dossier' - 'enterprise_id'
+                  - 'annexe_id' - 'created_by' - 'user_id' - 'created_at' - 'updated_at';
+
   INSERT INTO erp_patients (enterprise_id, annexe_id, code, numero_dossier, created_by)
-  VALUES (v_eid, v_annexe_id, v_code, COALESCE(p_data->>'numero_dossier', v_code), auth.uid())
+  VALUES (v_eid, v_annexe_id, v_code, v_dossier, auth.uid())
   RETURNING id INTO v_patient_id;
 
   UPDATE erp_patients p
@@ -121,7 +122,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 3. Trigger pour tout INSERT direct dans erp_patients
+-- 2. Trigger pour tout INSERT direct dans erp_patients
 CREATE OR REPLACE FUNCTION erp_patients_assign_code()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -129,27 +130,42 @@ DECLARE
   v_prefix text;
   v_seq int;
 BEGIN
-  IF NEW.code IS NOT NULL THEN RETURN NEW; END IF;
+  -- A. Code patient
+  IF NEW.code IS NULL THEN
+    v_annexe := COALESCE(
+      NEW.annexe_id,
+      (SELECT annexe_id FROM erp_users WHERE id = COALESCE(NEW.created_by, auth.uid())),
+      (SELECT id FROM erp_annexes WHERE is_active ORDER BY is_principale DESC, created_at LIMIT 1)
+    );
 
-  v_annexe := COALESCE(
-    NEW.annexe_id,
-    (SELECT annexe_id FROM erp_users WHERE id = COALESCE(NEW.created_by, auth.uid())),
-    (SELECT id FROM erp_annexes WHERE is_active ORDER BY (code = 'HRC') DESC, is_principale DESC, created_at LIMIT 1)
-  );
+    IF v_annexe IS NOT NULL THEN
+      UPDATE erp_annexes
+         SET patient_seq = patient_seq + 1
+       WHERE id = v_annexe
+      RETURNING code, patient_seq INTO v_prefix, v_seq;
 
-  IF v_annexe IS NULL THEN
-    INSERT INTO erp_annexes (enterprise_id, code, nom, is_principale, created_by, patient_seq)
-    VALUES (NEW.enterprise_id, 'HRC', 'Siège Principal', true, COALESCE(NEW.created_by, auth.uid()), 1161)
-    RETURNING id INTO v_annexe;
+      NEW.annexe_id := v_annexe;
+      NEW.code := v_prefix || '-' || lpad(v_seq::text, 4, '0');
+    END IF;
   END IF;
 
-  UPDATE erp_annexes
-     SET patient_seq = patient_seq + 1
-   WHERE id = v_annexe
-  RETURNING code, patient_seq INTO v_prefix, v_seq;
+  -- B. Numéro de dossier HRC-001162...
+  IF NEW.numero_dossier IS NULL THEN
+    SELECT 'HRC-' || lpad((
+      COALESCE(
+        MAX(NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int),
+        1161
+      ) + 1
+    )::text, 6, '0') INTO NEW.numero_dossier
+    FROM erp_patients
+    WHERE numero_dossier ILIKE 'HRC-%'
+      AND NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int < 2000;
 
-  NEW.annexe_id := v_annexe;
-  NEW.code := v_prefix || '-' || lpad(v_seq::text, CASE WHEN v_prefix = 'HRC' THEN 6 ELSE 4 END, '0');
+    IF NEW.numero_dossier IS NULL THEN
+      NEW.numero_dossier := 'HRC-001162';
+    END IF;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -158,11 +174,11 @@ DROP TRIGGER IF EXISTS trg_patients_code ON erp_patients;
 CREATE TRIGGER trg_patients_code BEFORE INSERT ON erp_patients
   FOR EACH ROW EXECUTE FUNCTION erp_patients_assign_code();
 
--- 4. Verification immediate
+-- 3. Vérification du prochain numéro de dossier
 SELECT
-  code AS code_annexe,
-  nom AS nom_annexe,
-  patient_seq AS sequence_actuelle,
-  code || '-' || lpad((patient_seq + 1)::text, 6, '0') AS prochain_patient_code
-FROM erp_annexes
-WHERE code = 'HRC' OR is_principale = true;
+  'HRC-' || lpad((
+    COALESCE(MAX(NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int), 1161) + 1
+  )::text, 6, '0') AS prochain_numero_dossier_hrc
+FROM erp_patients
+WHERE numero_dossier ILIKE 'HRC-%'
+  AND NULLIF(regexp_replace(numero_dossier, '[^0-9]', '', 'g'), '')::int < 2000;
