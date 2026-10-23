@@ -77,8 +77,8 @@ const ERP_CORE_MODULES = ['dashboard', 'clients', 'taches', 'messages', 'rapport
 // Clés de permission qui débloquent chaque module
 const ERP_MODULE_PERMISSIONS = {
   clients:      ['clients'],
-  stock:        ['stock', 'stock_read', 'catalogue'],
-  catalogue:    ['catalogue', 'stock', 'stock_read'],
+  stock:        ['stock', 'stock_read'],
+  catalogue:    ['catalogue'],
   finances:     ['finances', 'factures', 'facturation', 'caisse'],
   caisse:       ['caisse', 'finances'],
   ventes:       ['ventes'],
@@ -105,10 +105,10 @@ const ERP_MODULE_PERMISSIONS = {
   ordonnances:  ['ordonnances', 'patients'],
   protheses:    ['protheses', 'patients'],
   ortheses:     ['ortheses', 'patients'],
-  services:     ['services', 'catalogue'],
+  services:     ['services'],
   facturation_medical: ['facturation_medical', 'facturation', 'finances'],
-  pharmacie:    ['pharmacie', 'stock'],
-  materiel_orthopedique: ['materiel_orthopedique', 'stock', 'catalogue'],
+  pharmacie:    ['pharmacie'],
+  materiel_orthopedique: ['materiel_orthopedique', 'stock'],
   siteweb:      ['siteweb', 'parametres'],
   annonces:     ['annonces', 'siteweb', 'parametres'],
   // Workflow clinique & opérations
@@ -130,7 +130,7 @@ const ERP_ROLE_DEFAULT_PERMISSIONS = {
   manager:           { clients: true, stock: true, catalogue: true, finances: true, caisse: true, taches: true, rapports: true, rh: true, employes: true, messages: true, parametres: true, users: true },
   secretaire:        { clients: true, patients: true, rdv: true, service_client: true, taches: true, rapports: true, rapports_mensuels: true, messages: true, agenda: true },
   comptable:         { finances: true, caisse: true, encaissements: true, factures: true, clients: true, patients: true, rapports: true, rapports_mensuels: true, messages: true },
-  responsable_stock: { stock: true, catalogue: true, fournisseurs: true, achats: true, rapports: true, rapports_mensuels: true, messages: true },
+  responsable_stock: { stock: true, fournisseurs: true, achats: true, rapports: true, rapports_mensuels: true, messages: true },
   commercial:        { clients: true, stock_read: true, catalogue: true, ventes: true, taches: true, rapports: true, messages: true },
   rh:                { rh: true, employes: true, presences: true, conges: true, taches: true, rapports: true, messages: true },
   receptionniste:    { patients: true, clients: true, rdv: true, agenda: true, seances: true, service_client: true, taches: true, rapports: true, rapports_mensuels: true, messages: true },

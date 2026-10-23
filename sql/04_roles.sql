@@ -9,7 +9,7 @@ INSERT INTO erp_postes (name, department, description, permissions) VALUES
 ('Directeur', 'Direction', 'Directeur — accès complet entreprise', '{"all": true}'),
 ('Secrétaire', 'Administration', 'Gestion administrative et clientèle', '{"clients": true, "taches": true, "rapports": true, "messages": true, "agenda": true}'),
 ('Comptable', 'Finance', 'Gestion comptable et financière', '{"finances": true, "clients": true, "rapports": true, "factures": true, "caisse": true}'),
-('Responsable Stock', 'Logistique', 'Gestion de l''inventaire et des mouvements de stock', '{"stock": true, "rapports": true, "fournisseurs": true, "catalogue": true}'),
+('Responsable Stock', 'Logistique', 'Gestion de l''inventaire et des mouvements de stock', '{"stock": true, "rapports": true, "fournisseurs": true}'),
 ('Commercial', 'Ventes', 'Prospection et gestion des clients', '{"clients": true, "stock_read": true, "taches": true, "rapports": true, "ventes": true, "catalogue": true}'),
 ('Responsable RH', 'Ressources Humaines', 'Gestion du personnel et des performances', '{"rh": true, "taches": true, "rapports": true, "employes": true}'),
 ('Community Manager', 'Marketing', 'Gestion des réseaux sociaux et communication', '{"clients": true, "messages": true, "rapports": true, "catalogue": true, "ventes": true}'),

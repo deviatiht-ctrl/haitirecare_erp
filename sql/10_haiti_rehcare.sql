@@ -411,7 +411,7 @@ FROM (VALUES
   ('Caissier', 'Finances', 'Encaissements, caisse et facturation',
    '{"caisse":true,"facturation":true,"ventes":true,"clients":true,"patients":true,"services":true,"rapports":true,"messages":true}'),
   ('Responsable Magasin', 'Stock', 'Matériel orthopédique — achats et ventes',
-   '{"stock":true,"materiel_orthopedique":true,"catalogue":true,"fournisseurs":true,"ventes":true,"rapports":true,"messages":true}')
+   '{"stock":true,"materiel_orthopedique":true,"fournisseurs":true,"ventes":true,"rapports":true,"messages":true}')
 ) AS v(name, department, description, permissions)
 WHERE NOT EXISTS (
   SELECT 1 FROM erp_postes p WHERE p.name = v.name

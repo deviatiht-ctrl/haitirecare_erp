@@ -1335,7 +1335,7 @@ FROM (VALUES
    '{"patients":true,"clients":true,"rdv":true,"seances":true,"agenda":true,"service_client":true,"taches":true,"rapports":true,"rapports_mensuels":true,"messages":true}'),
   ('Gestionnaire Stock & Achats', 'Logistique',
    'Inventaire, mouvements de stock, fournisseurs et bons de commande',
-   '{"stock":true,"catalogue":true,"fournisseurs":true,"achats":true,"materiel_orthopedique":true,"ventes":true,"rapports":true,"rapports_mensuels":true,"messages":true}')
+   '{"stock":true,"fournisseurs":true,"achats":true,"materiel_orthopedique":true,"ventes":true,"rapports":true,"rapports_mensuels":true,"messages":true}')
 ) AS v(name, department, description, permissions)
 WHERE NOT EXISTS (
   SELECT 1 FROM erp_postes p WHERE p.name = v.name
