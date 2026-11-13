@@ -1142,7 +1142,7 @@ BEGIN
   -- Trouver l'ID de l'entreprise
   SELECT id INTO v_enterprise_id FROM erp_enterprise_registrations
    WHERE statut = 'active'
-   ORDER BY (lower(company_email) = 'haitirecareerp@gmail.com') DESC, created_at
+   ORDER BY (lower(company_email) = 'haitirecarepdg@gmail.com') DESC, created_at
    LIMIT 1;
 
   -- Si une annexe temporaire 'HRC' existe alors que 'PAP' existe, nettoyer pour eviter tout conflit

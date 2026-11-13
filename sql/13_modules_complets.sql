@@ -163,7 +163,7 @@ INSERT INTO erp_modules (code, name, category, description, icon, default_permis
 ON CONFLICT (code) DO NOTHING;
 
 -- ------------------------------------------------------------
--- 4. PDG: haitirecareerp@gmail.com = chèf tout bagay
+-- 4. PDG: haitirecarepdg@gmail.com = chèf tout bagay
 --    role 'pdg' + antrepriz debloke nèt ({"all": true}).
 -- ------------------------------------------------------------
 DO $$
@@ -173,20 +173,20 @@ DECLARE
 BEGIN
   UPDATE erp_enterprise_registrations
   SET features_unlocked = '{"all": true}', statut = 'active'
-  WHERE lower(company_email) = 'haitirecareerp@gmail.com'
+  WHERE lower(company_email) = 'haitirecarepdg@gmail.com'
   RETURNING id INTO v_eid;
 
   UPDATE erp_settings SET features_enabled = '{"all": true}'
   WHERE v_eid IS NULL OR enterprise_id = v_eid OR enterprise_id IS NULL;
 
-  SELECT id INTO v_uid FROM auth.users WHERE lower(email) = 'haitirecareerp@gmail.com';
+  SELECT id INTO v_uid FROM auth.users WHERE lower(email) = 'haitirecarepdg@gmail.com';
   IF v_uid IS NULL THEN
-    RAISE NOTICE 'Kont auth haitirecareerp@gmail.com pa egziste — kreye l nan Supabase Auth epi re-egzekite fichye sa a.';
+    RAISE NOTICE 'Kont auth haitirecarepdg@gmail.com pa egziste — kreye l nan Supabase Auth epi re-egzekite fichye sa a.';
     RETURN;
   END IF;
 
   INSERT INTO erp_users (id, email, first_name, last_name, role, is_active)
-  VALUES (v_uid, 'haitirecareerp@gmail.com', 'Direction', 'HAITI REH-CARE', 'pdg', true)
+  VALUES (v_uid, 'haitirecarepdg@gmail.com', 'Direction', 'HAITI REH-CARE', 'pdg', true)
   ON CONFLICT (id) DO UPDATE SET role = 'pdg', is_active = true;
 
   -- Retire nenpòt modil ki te dezaktive manyèlman pou PDG a

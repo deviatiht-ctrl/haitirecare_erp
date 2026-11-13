@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d9488">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RehCare ERP">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/assets/img/icons/apple-touch-icon.png">
   <title>Utilisateurs - HAITI REH-CARE ERP</title>
   <link rel="stylesheet" href="/assets/css/variables.css?v=9">
   <link rel="stylesheet" href="/assets/css/main.css?v=9">
@@ -12,6 +19,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="/assets/js/offline.js?v=1"></script>
   <script src="/assets/js/supabase.js?v=10"></script>
   <script src="/assets/js/auth.js?v=11"></script>
   <script src="/assets/js/layout.js?v=10"></script>
@@ -180,6 +188,36 @@
     </div>
   </div>
 
+  <!-- Offline PIN Modal -->
+  <div id="pin-modal" class="modal-overlay hidden">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Accès hors-ligne</h3>
+        <button class="modal-close" onclick="closePinModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="pin-user-name" style="font-weight:600;margin-bottom:14px;"></p>
+        <label style="display:flex;align-items:center;gap:10px;margin-bottom:16px;cursor:pointer;font-weight:500;">
+          <input type="checkbox" id="pin-enabled"> Autoriser la connexion hors-ligne
+        </label>
+        <div class="form-group">
+          <label class="form-label" style="position:static;display:block;margin-bottom:6px;">Code hors-ligne (min. 4 caractères)</label>
+          <input type="password" id="pin-input" class="form-input" style="padding-left:16px;" placeholder="Laisser vide = conserver le code actuel" autocomplete="off">
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-top:10px;">
+          L'employé utilisera ce code sur la page de connexion quand il n'y a pas d'Internet.
+          Décochez la case pour révoquer l'accès — la révocation se propage à l'appareil dès qu'il retrouve Internet.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePinModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="savePin()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let allUsers = [];
     let allPostes = [];
@@ -247,11 +285,15 @@
             <span class="status-badge ${user.is_active ? 'active' : 'inactive'}">
               ${user.is_active ? 'Actif' : 'Inactif'}
             </span>
+            ${user.offline_access_enabled ? '<span class="badge" style="background:#fef3c7;color:#b45309;margin-left:4px;font-size:11px;" title="Accès hors-ligne activé">PIN ✓</span>' : ''}
           </td>
           <td>
             <div class="table-actions">
               <button class="table-action-btn" onclick="window.location.href='/modules/users/profil.html?id=${user.id}'">
                 <i data-lucide="eye"></i> Voir
+              </button>
+              <button class="table-action-btn" title="Code hors-ligne" onclick="openPinModal('${user.id}')">
+                <i data-lucide="key-round"></i>
               </button>
               <button class="table-action-btn danger" onclick="toggleUserStatus('${user.id}', ${user.is_active})">
                 <i data-lucide="${user.is_active ? 'ban' : 'check'}"></i>
@@ -272,6 +314,50 @@
       } catch (error) {
         console.error('Toggle status error:', error);
         alert('Erreur lors de la modification du statut');
+      }
+    }
+
+    let pinUserId = null;
+
+    function openPinModal(userId) {
+      pinUserId = userId;
+      const u = allUsers.find(x => x.id === userId);
+      if (!u) return;
+      document.getElementById('pin-user-name').textContent = `${u.first_name || ''} ${u.last_name || ''} — ${u.email}`;
+      document.getElementById('pin-enabled').checked = !!u.offline_access_enabled;
+      document.getElementById('pin-input').value = '';
+      document.getElementById('pin-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closePinModal() {
+      document.getElementById('pin-modal').classList.add('hidden');
+      pinUserId = null;
+    }
+
+    async function savePin() {
+      const u = allUsers.find(x => x.id === pinUserId);
+      const enabled = document.getElementById('pin-enabled').checked;
+      const pin = document.getElementById('pin-input').value.trim();
+      try {
+        if (!enabled) {
+          await db.rpc('erp_revoke_offline_access', { p_user_id: pinUserId });
+        } else if (pin) {
+          if (pin.length < 4) { alert('Code trop court (minimum 4 caractères)'); return; }
+          const { data, error } = await db.rpc('erp_set_offline_pin', { p_user_id: pinUserId, p_pin: pin });
+          if (error) throw error;
+          if (data && data.ok === false) { alert(data.error || 'Erreur'); return; }
+        } else if (!u.offline_access_enabled) {
+          alert('Entrez un code pour activer l\'accès hors-ligne');
+          return;
+        }
+        closePinModal();
+        await loadUsers();
+        try { if (window.OfflineAuth) OfflineAuth.refresh(true); } catch (e) {}
+        logActivity('PIN hors-ligne', 'Users', `Accès hors-ligne ${enabled ? 'activé/modifié' : 'révoqué'} pour ${u.email}`);
+      } catch (error) {
+        console.error('Save PIN error:', error);
+        alert('Erreur: ' + error.message);
       }
     }
 

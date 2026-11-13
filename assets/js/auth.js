@@ -149,7 +149,7 @@ const ERP_GLOBAL_ROLES = ['pdg', 'directrice', 'directeur', 'informaticien'];
 const ERP_MEDICAL_ROLES = ['pdg', 'directrice', 'directeur', 'medecin', 'physiotherapeute'];
 
 // Comptes de direction: accès total à tous les modules, quel que soit le poste
-const ERP_OWNER_EMAILS = ['haitirecareerp@gmail.com'];
+const ERP_OWNER_EMAILS = ['haitirecarepdg@gmail.com'];
 
 function isErpOwner(user) {
   return user?.role === 'pdg' || user?.role === 'informaticien'
@@ -163,6 +163,7 @@ function hasGlobalAccess(user) {
 
 // Calcule les permissions effectives: rôle + poste + modules assignés
 async function getEffectivePermissions(user) {
+  if (user?._offline_perms) return user._offline_perms;
   if (isErpOwner(user)) return { all: true };
 
   const perms = { ...(ERP_ROLE_DEFAULT_PERMISSIONS[user?.role] || {}) };
@@ -256,6 +257,19 @@ async function getEnterpriseContext(user) {
   // retire modil Clients la pou evite doublòn ak modil Patients.
   if (['physiotherapy', 'hospital'].includes(ctx.type?.code)) {
     ctx.modules = ctx.modules.filter(m => m !== 'clients');
+  }
+
+  // Cache du contexte pour le mode hors-ligne (connexion PIN)
+  if (ctx.enterprise || ctx.settings) {
+    try { localStorage.setItem('erp_enterprise_ctx', JSON.stringify(ctx)); } catch (e) {}
+  } else {
+    try {
+      const c = localStorage.getItem('erp_enterprise_ctx');
+      if (c) {
+        const p = JSON.parse(c);
+        if (p && (p.enterprise || p.settings)) return p;
+      }
+    } catch (e) {}
   }
   return ctx;
 }
@@ -453,13 +467,21 @@ async function _initAppOnce() {
     }
 
     if (!session) {
-      const storedUser = localStorage.getItem('currentUser');
-      if (storedUser) {
-        user = JSON.parse(storedUser);
-        console.log('Using offline cached user:', user);
-      } else if (getCurrentPage() !== 'index.html') {
-        window.location.href = '/index.html';
-        return;
+      // Session hors-ligne (connexion par PIN) prioritaire sur le cache brut
+      const offlineUser = (window.OfflineAuth) ? await OfflineAuth.getSessionUser() : null;
+      if (offlineUser) {
+        user = offlineUser;
+        window.isOfflineSession = true;
+        console.log('Using offline PIN session:', user.email);
+      } else {
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          user = JSON.parse(storedUser);
+          console.log('Using offline cached user:', user);
+        } else if (getCurrentPage() !== 'index.html') {
+          window.location.href = '/index.html';
+          return;
+        }
       }
     } else {
       try {
@@ -493,6 +515,11 @@ async function _initAppOnce() {
     }
 
     window.currentUser = user;
+
+    // Rafraîchit le cache PIN hors-ligne sur session en ligne (throttle interne)
+    if (navigator.onLine && !window.isOfflineSession && window.OfflineAuth) {
+      OfflineAuth.refresh().catch(() => {});
+    }
 
     // Permissions effectives + contexte entreprise (modules activés)
     user.effective_permissions = await getEffectivePermissions(user);
@@ -588,7 +615,10 @@ async function login(email, password) {
     // Store user globally
     window.currentUser = user;
     window.currentSession = authData.session;
-    
+
+    // Rafraîchit le cache hors-ligne (PIN employés) — non bloquant
+    try { if (window.OfflineAuth) OfflineAuth.refresh(); } catch (e) {}
+
     // All staff members land on the dynamic modular dashboard
     return { success: true, redirectUrl: 'dashboard.html' };
     
@@ -604,11 +634,13 @@ async function logout() {
     await db.auth.signOut();
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentSession');
+    localStorage.removeItem('erp_offline_session');
     window.location.href = '/index.html';
   } catch (error) {
     console.error('Logout error:', error);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentSession');
+    localStorage.removeItem('erp_offline_session');
     window.location.href = '/index.html';
   }
 }

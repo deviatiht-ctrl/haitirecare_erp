@@ -327,11 +327,11 @@ BEGIN
     pdg_first_name, pdg_last_name, pdg_email, pdg_phone,
     statut, subscription_plan, features_unlocked
   ) VALUES (
-    'HAITI REH-CARE', 'haitirecareerp@gmail.com', '+509 0000 0000',
+    'HAITI REH-CARE', 'haitirecarepdg@gmail.com', '+509 0000 0000',
     'Port-au-Prince', 'Port-au-Prince', 'Haïti', v_type_id,
     'Santé — Physiothérapie & Réadaptation', '11-50',
     'Centre de physiothérapie, massothérapie, pose de prothèses et orthèses, achat et vente de matériel orthopédique.',
-    'Direction', 'HAITI REH-CARE', 'haitirecareerp@gmail.com', '+509 0000 0000',
+    'Direction', 'HAITI REH-CARE', 'haitirecarepdg@gmail.com', '+509 0000 0000',
     'active', 'premium', '{"all": true}'
   )
   ON CONFLICT (company_email) DO UPDATE SET
@@ -345,7 +345,7 @@ BEGIN
   -- .single() nan UI la ta echwe si plizyè liy)
   UPDATE erp_settings SET
     company_name = 'HAITI REH-CARE',
-    company_email = 'haitirecareerp@gmail.com',
+    company_email = 'haitirecarepdg@gmail.com',
     company_phone = '+509 0000 0000',
     company_address = 'Port-au-Prince',
     company_city = 'Port-au-Prince',
@@ -362,7 +362,7 @@ BEGIN
     company_city, company_country, sector, enterprise_id,
     is_enterprise_active, subscription_status, features_enabled
   )
-  SELECT 'HAITI REH-CARE', 'haitirecareerp@gmail.com', '+509 0000 0000',
+  SELECT 'HAITI REH-CARE', 'haitirecarepdg@gmail.com', '+509 0000 0000',
          'Port-au-Prince', 'Port-au-Prince', 'Haïti',
          'Santé — Physiothérapie', v_enterprise_id,
          true, 'active', '{"all": true}'
@@ -371,11 +371,11 @@ BEGIN
   );
 
   -- Rattache le compte Supabase Auth existant (déjà créé)
-  SELECT id INTO v_user_id FROM auth.users WHERE email = 'haitirecareerp@gmail.com';
+  SELECT id INTO v_user_id FROM auth.users WHERE email = 'haitirecarepdg@gmail.com';
 
   IF v_user_id IS NOT NULL THEN
     INSERT INTO erp_users (id, first_name, last_name, email, role, is_active)
-    VALUES (v_user_id, 'Direction', 'HAITI REH-CARE', 'haitirecareerp@gmail.com', 'pdg', true)
+    VALUES (v_user_id, 'Direction', 'HAITI REH-CARE', 'haitirecarepdg@gmail.com', 'pdg', true)
     ON CONFLICT (id) DO UPDATE SET role = 'pdg', is_active = true;
 
     INSERT INTO erp_user_enterprises (user_id, enterprise_id, role_in_enterprise, is_primary)
@@ -387,7 +387,7 @@ BEGIN
     VALUES (v_user_id, CURRENT_DATE, 'CDI')
     ON CONFLICT (id) DO NOTHING;
   ELSE
-    RAISE NOTICE 'Compte auth haitirecareerp@gmail.com introuvable — créez-le dans Supabase Auth puis re-exécutez ce fichier.';
+    RAISE NOTICE 'Compte auth haitirecarepdg@gmail.com introuvable — créez-le dans Supabase Auth puis re-exécutez ce fichier.';
   END IF;
 END $$;
 
@@ -425,7 +425,7 @@ DECLARE
   v_eid uuid;
 BEGIN
   SELECT id INTO v_eid FROM erp_enterprise_registrations
-  WHERE company_email = 'haitirecareerp@gmail.com';
+  WHERE company_email = 'haitirecarepdg@gmail.com';
 
   INSERT INTO erp_services (enterprise_id, code, name, category, description, price, duration_min, is_public)
   SELECT v_eid, s.code, s.name, s.category, s.description, s.price, s.duration_min, true
@@ -490,7 +490,7 @@ DECLARE
   v_eid uuid;
 BEGIN
   SELECT id INTO v_eid FROM erp_enterprise_registrations
-  WHERE company_email = 'haitirecareerp@gmail.com';
+  WHERE company_email = 'haitirecarepdg@gmail.com';
 
   INSERT INTO erp_patients (enterprise_id, nom, prenom, date_naissance, sexe, phone, adresse, diagnostic, statut)
   SELECT v_eid, p.nom, p.prenom, p.date_naissance::date, p.sexe, p.phone, p.adresse, p.diagnostic, p.statut
@@ -528,7 +528,7 @@ DECLARE
   ];
 BEGIN
   SELECT id INTO v_eid FROM erp_enterprise_registrations
-  WHERE company_email = 'haitirecareerp@gmail.com';
+  WHERE company_email = 'haitirecarepdg@gmail.com';
   IF v_eid IS NULL THEN RETURN; END IF;
 
   -- Un rendez-vous par service principal, répartis sur la semaine
@@ -602,4 +602,4 @@ SELECT id AS enterprise_id,
        company_name,
        'site/materiel.html' || id AS lien_catalogue_public
 FROM erp_enterprise_registrations
-WHERE company_email = 'haitirecareerp@gmail.com';
+WHERE company_email = 'haitirecarepdg@gmail.com';

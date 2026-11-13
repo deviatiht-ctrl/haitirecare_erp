@@ -1282,7 +1282,7 @@ DECLARE
   v_eid uuid;
 BEGIN
   SELECT id INTO v_eid FROM erp_enterprise_registrations
-   WHERE lower(company_email) = 'haitirecareerp@gmail.com'
+   WHERE lower(company_email) = 'haitirecarepdg@gmail.com'
    LIMIT 1;
 
   IF v_eid IS NOT NULL THEN

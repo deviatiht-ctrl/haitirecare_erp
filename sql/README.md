@@ -21,7 +21,7 @@ Before running any SQL files, you MUST create the direction user:
 
 1. Go to Authentication → Users in Supabase dashboard
 2. Click "Add user" → "Create new user"
-3. Enter the direction email: `haitirecareerp@gmail.com`
+3. Enter the direction email: `haitirecarepdg@gmail.com`
 4. Set a secure password
 5. Click "Create user"
 
@@ -37,12 +37,16 @@ Open the SQL Editor in Supabase and run these files **in this exact order**:
 7. **09_fixes.sql** - Fixes (roles check, sectorial modules)
 8. **10_haiti_rehcare.sql** - HAITI REH-CARE enterprise + clinical tables (patients, rdv, séances, prothèses, orthèses) + seed
 9. **11_portal.sql** - Public portal: patient accounts, annonces (achat/vente), staff creation fix, logo storage policies
-10. **13_modules_complets.sql** - Tables for Pharmacie, Fournisseurs, Factures, Facturation Médicale, Ordonnances, Agenda + full access for `haitirecareerp@gmail.com` (PDG)
+10. **13_modules_complets.sql** - Tables for Pharmacie, Fournisseurs, Factures, Facturation Médicale, Ordonnances, Agenda + full access for `haitirecarepdg@gmail.com` (PDG)
 11. **12_cleanup.sql** - (OPTIONNEL) Retire les objets CVisual d'une base existante. Le système fonctionne sans ce fichier.
 12. **14_annexes_patients.sql** - Annexes/succursales (`erp_annexes`, `erp_users.annexe_id`), code patient auto par annexe (`PAP-0001`), dossier patient complet (fiches 1-9) + `erp_patient_reevaluations` (fiche 10)
 13. **15_roles_receptionniste_chauffeur.sql** - Nouveaux rôles `receptionniste` (accès clinique niveau secrétaire) et `chauffeur` (accès minimal) — CHECK, RPC, RLS
 14. **16_multibranch.sql** - **Multi-annexes complet** : `annexe_id` sur toutes les tables opérationnelles (+ backfill vers l'annexe principale), trigger `erp_set_row_annexe` (annexe auto sur insert), RLS `erp_annexe_visible()` (isolation stricte : staff = son annexe, direction/admin = tout), nouveaux rôles (`medecin`, `physiotherapeute`, `ouvrier`, `informaticien`), tables de workflow (`erp_evaluations`, `erp_atelier_orders`, `erp_encaissements`, `erp_reclamations`, `erp_bons_commande`, `erp_rapports_mensuels`, `erp_audit_log`), RPC (`erp_send_monthly_report`, `erp_transfer_stock`) et seed des annexes **Port-au-Prince (PAP)** et **Léogâne (LEO)**.
 15. **17_demandes_inscription.sql** - **Inscription patient en ligne** : table `erp_patient_demandes` + RPC publique `erp_public_demande_patient` (sans connexion, whitelist des champs + anti-doublon) — le patient remplit `site/inscription.html` via lien/QR code, la demande arrive automatiquement dans Patients → Demandes en ligne (realtime), la secrétaire la convertit en dossier en un clic.
+16. **18_reset_stock.sql à 22_caisse_workflow.sql** - Seeds/fix de données (stock, patients, permissions responsable stock, code patient manuel, workflow caisse).
+17. **23_fix_user_delete.sql** - **IMPORTANT** : corrige l'erreur "Database error deleting user" — ajoute `ON DELETE CASCADE`/`SET NULL` sur toutes les clés étrangères vers `auth.users`/`erp_users`, ce qui permet d'effacer un compte dans Supabase Auth sans erreur. Peut aussi être exécuté sur une base existante.
+18. **24_set_pdg.sql** - (Standalone) Attache `haitirecarepdg@gmail.com` comme PDG : `erp_users`, `erp_user_enterprises`, `erp_employes` + modules débloqués. Idempotent — à exécuter après avoir créé le compte dans Supabase Auth.
+19. **25_offline_access.sql** - **Mode hors-ligne** : colonnes `offline_pin_hash`/`offline_access_enabled` sur `erp_users` + RPC `erp_set_offline_pin`, `erp_revoke_offline_access` (PDG/Direction) et `erp_list_offline_users` (cache appareil). Nécessaire pour la connexion par code PIN sans Internet.
 
 ### 5. Verify the Setup
 After running all SQL files:

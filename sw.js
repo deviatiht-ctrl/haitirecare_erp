@@ -1,11 +1,40 @@
 // Service Worker - HAITI REH-CARE ERP & Public Site
-// Network-First with Offline Cache Fallback
-// Ensures instant updates without browser cache locking
+// Network-First with Offline Cache Fallback + precache de l'app shell.
+// Les requêtes REST Supabase (lecture/écriture) sont gérées dans la page
+// par assets/js/offline.js (IndexedDB), pas ici.
 
-const CACHE_NAME = 'haiti-rehcare-cache-v20261023-4';
+const CACHE_NAME = 'haiti-rehcare-cache-v20261113-1';
+
+// App shell pré-chargée : l'ERP s'ouvre hors-ligne même avant la première visite
+const APP_SHELL = [
+  './',
+  './index.html',
+  './dashboard.html',
+  './module.html',
+  './manifest.json',
+  './assets/css/variables.css',
+  './assets/css/main.css',
+  './assets/css/layout.css',
+  './assets/css/components.css',
+  './assets/css/dashboard.css',
+  './assets/js/supabase.js',
+  './assets/js/offline.js',
+  './assets/js/auth.js',
+  './assets/js/layout.js',
+  './assets/img/logohaitirecare.png',
+  './assets/img/icons/icon-192.png',
+  './assets/img/icons/icon-512.png',
+  './assets/img/icons/icon-maskable-512.png',
+  './assets/img/icons/apple-touch-icon.png'
+];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .catch((e) => console.warn('[SW] Precache partial:', e))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -35,15 +64,21 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Skip non-GET requests and Supabase realtime / REST API requests
-  if (req.method !== 'GET' || url.pathname.includes('/rest/v1/') || url.pathname.includes('/realtime/')) {
+  // Skip non-GET requests and Supabase API calls
+  // (offline.js intercepte /rest/v1/* au niveau page pour le cache + la file de sync)
+  if (req.method !== 'GET'
+      || url.pathname.includes('/rest/v1/')
+      || url.pathname.includes('/auth/v1/')
+      || url.pathname.includes('/realtime/')
+      || url.pathname.includes('/storage/v1/')) {
     return;
   }
 
   event.respondWith(
     fetch(req)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+        if (networkResponse && networkResponse.status === 200
+            && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, responseToCache));
         }
@@ -58,6 +93,9 @@ self.addEventListener('fetch', (event) => {
         if (req.headers.get('accept')?.includes('text/html')) {
           if (url.pathname.startsWith('/site/')) {
             return (await caches.match('/site/materiel.html')) || caches.match('/site/index.html');
+          }
+          if (url.pathname.startsWith('/modules/')) {
+            return (await caches.match(req.url)) || (await caches.match('/module.html')) || caches.match('/dashboard.html');
           }
           return (await caches.match('/dashboard.html')) || caches.match('/index.html');
         }
